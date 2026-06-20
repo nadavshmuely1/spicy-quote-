@@ -49,6 +49,13 @@
   .tb-btn { border:none; padding:13px 22px; font-family:'Heebo',sans-serif; font-size:13px; font-weight:700; cursor:pointer; border-radius:5px; letter-spacing:0.3px; display:flex; align-items:center; gap:8px; direction:rtl; }
   #print-btn { background:#C32A2A; color:#fff; box-shadow:0 4px 20px rgba(195,42,42,0.45); }
   #reset-btn { background:#fff; color:#C32A2A; border:1.5px solid #C32A2A !important; box-shadow:0 4px 14px rgba(0,0,0,0.1); }
+
+  @media (max-width: 850px) {
+    #outer-wrap { padding: 14px 6px 90px; gap: 18px; }
+    .page { zoom: calc((100vw - 12px) / 794); }
+    #toolbar { left: 10px; right: 10px; bottom: 12px; flex-direction: column; }
+    .tb-btn { width: 100%; justify-content: center; padding: 13px 18px; }
+  }
 </style>
 </head>
 <body>
