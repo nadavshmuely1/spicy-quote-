@@ -51,8 +51,9 @@
   #reset-btn { background:#fff; color:#C32A2A; border:1.5px solid #C32A2A !important; box-shadow:0 4px 14px rgba(0,0,0,0.1); }
 
   @media (max-width: 850px) {
-    #outer-wrap { padding: 14px 6px 90px; gap: 18px; }
-    .page { zoom: calc((100vw - 12px) / 794); }
+    #outer-wrap { padding: 14px 0 90px; gap: 18px; }
+    .page-frame { width: 100%; overflow: hidden; position: relative; }
+    .page-frame .page { margin: 0 auto !important; }
     #toolbar { left: 10px; right: 10px; bottom: 12px; flex-direction: column; }
     .tb-btn { width: 100%; justify-content: center; padding: 13px 18px; }
   }
@@ -460,6 +461,7 @@
       }
     });
     calcPrice();
+    if (typeof applyResponsiveScale === 'function') applyResponsiveScale();
   }
 
   addBtn.addEventListener('click', function () {
@@ -506,7 +508,43 @@
   }
   document.querySelector('[data-fid="price"]').addEventListener('input', calcPrice);
 
+  // Scale pages to fit narrow (mobile) screens without clipping or misalignment.
+  var PAGE_WIDTH = 794;
+  function applyResponsiveScale() {
+    var pages = document.querySelectorAll('#outer-wrap > .page, #outer-wrap > .page-frame > .page');
+    var isMobile = window.innerWidth <= 850;
+    pages.forEach(function (page) {
+      var frame = page.parentElement;
+      if (isMobile) {
+        if (!frame.classList.contains('page-frame')) {
+          frame = document.createElement('div');
+          frame.className = 'page-frame';
+          page.parentNode.insertBefore(frame, page);
+          frame.appendChild(page);
+        }
+        var available = frame.clientWidth || (window.innerWidth - 0);
+        var scale = Math.min(1, available / PAGE_WIDTH);
+        page.style.transform = 'scale(' + scale + ')';
+        page.style.transformOrigin = 'top center';
+        page.style.width = PAGE_WIDTH + 'px';
+        frame.style.height = (page.offsetHeight * scale) + 'px';
+      } else if (frame.classList.contains('page-frame')) {
+        page.style.transform = '';
+        page.style.transformOrigin = '';
+        page.style.width = '';
+        var outerWrap = document.getElementById('outer-wrap');
+        outerWrap.insertBefore(page, frame);
+        frame.remove();
+      }
+    });
+  }
+  window.addEventListener('resize', applyResponsiveScale);
+  window.addEventListener('orientationchange', applyResponsiveScale);
+
   render();
+  applyResponsiveScale();
+  // Re-measure after fonts/images settle so the scaled height is accurate.
+  window.addEventListener('load', applyResponsiveScale);
 })();
 </script>
 
