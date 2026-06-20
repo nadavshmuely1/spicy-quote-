@@ -24,7 +24,7 @@
     html, body { width: 210mm !important; }
     .row-controls, .add-service-btn { display: none !important; }
   }
-  .srow { position: relative; display:flex; align-items:center; gap:14px; padding:9px 16px; border-bottom:1px solid #F0F0F0; }
+  .srow { position: relative; display:flex; align-items:center; gap:14px; padding:6px 16px; border-bottom:1px solid #F0F0F0; }
   .row-controls {
     position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
     display: flex; gap: 3px; opacity: 0; pointer-events: none;
@@ -38,13 +38,13 @@
   }
   .row-ctrl-del { background: #C32A2A; color: white; }
   .add-service-btn {
-    width: 100%; padding: 8px 16px; background: none; border: none;
+    width: 100%; padding: 5px 16px; background: none; border: none;
     border-top: 1.5px dashed #E8E8E8; color: #C32A2A;
     font-family: 'Heebo', sans-serif; font-size: 12px; font-weight: 700;
     cursor: pointer; text-align: right; direction: rtl;
   }
   .add-service-btn:hover { background: #FEF5F5; }
-  .gitem { position:relative; display:flex; align-items:center; gap:12px; padding:6px 16px 6px 36px; }
+  .gitem { position:relative; display:flex; align-items:center; gap:12px; padding:4px 16px 4px 36px; }
   #toolbar { position:fixed; bottom:24px; left:24px; z-index:9999; display:flex; gap:10px; }
   .tb-btn { border:none; padding:13px 22px; font-family:'Heebo',sans-serif; font-size:13px; font-weight:700; cursor:pointer; border-radius:5px; letter-spacing:0.3px; display:flex; align-items:center; gap:8px; direction:rtl; }
   #print-btn { background:#C32A2A; color:#fff; box-shadow:0 4px 20px rgba(195,42,42,0.45); }
@@ -64,7 +64,7 @@
   <div class="page" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 8px 56px rgba(0,0,0,.15); display:flex; flex-direction:column; overflow:hidden;">
 
     <!-- HEADER -->
-    <div style="background:#FAE4E4; padding:26px 44px 22px; display:flex; justify-content:space-between; align-items:flex-end; flex-shrink:0; gap:24px;">
+    <div style="background:#FAE4E4; padding:18px 44px 14px; display:flex; justify-content:space-between; align-items:flex-end; flex-shrink:0; gap:24px;">
       <div>
         <div style="font-size:9px; letter-spacing:3.5px; color:rgba(175,30,30,0.6); font-weight:700; text-transform:uppercase; margin-bottom:10px;">PRICE QUOTE · הצעת מחיר</div>
         <div style="font-size:42px; font-weight:900; color:#C32A2A; line-height:1; letter-spacing:-2px;">הצעת מחיר</div>
@@ -84,8 +84,8 @@
     <div style="height:4px; background:#C32A2A; flex-shrink:0;"></div>
 
     <!-- CLIENT INFO BAR -->
-    <div style="background:#F8F8F8; padding:14px 44px; border-bottom:1px solid #EBEBEB; display:flex; gap:0; flex-shrink:0; align-items:flex-start;">
-      <div style="flex: 1; padding-left: 32px; border-left: 1px solid #E2E2E2; width: 259px; height: 57px">
+    <div style="background:#F8F8F8; padding:10px 44px; border-bottom:1px solid #EBEBEB; display:flex; gap:0; flex-shrink:0; align-items:flex-start;">
+      <div style="flex: 1; padding-left: 32px; border-left: 1px solid #E2E2E2; width: 259px; height: 48px">
         <div style="font-size:8.5px; letter-spacing:2.5px; color:#BBBBBB; font-weight:700; text-transform:uppercase; margin-bottom:5px;">הוכן עבור</div>
         <div contenteditable="true" data-fid="client-name" data-ph="שם הלקוח / העסק" style="font-size:15px; font-weight:800; color:#1A1A1A; border-bottom:2px solid #1A1A1A; padding-bottom:3px; min-width:180px; display:inline-block; min-height:24px; line-height:1.4;"></div>
       </div>
@@ -93,14 +93,14 @@
         <div style="font-size:8.5px; letter-spacing:2.5px; color:#BBBBBB; font-weight:700; text-transform:uppercase; margin-bottom:5px;">תאריך</div>
         <div contenteditable="true" data-fid="quote-date" data-ph="__.__.____" style="font-size:15px; font-weight:700; color:#1A1A1A; border-bottom:2px solid #1A1A1A; padding-bottom:3px; display:inline-block; min-width:100px; min-height:24px;"></div>
       </div>
-      <div style="flex:0 0 110px; padding-right:0;">
+      <div style="flex:0 0 110px; padding-right:0; text-align:center;">
         <div style="font-size:8.5px; letter-spacing:2.5px; color:#BBBBBB; font-weight:700; text-transform:uppercase; margin-bottom:5px;">תוקף ההצעה</div>
         <div style="font-size:15px; font-weight:700; color:#1A1A1A;">30 ימים</div>
       </div>
     </div>
 
     <!-- SERVICES SECTION -->
-    <div style="padding:20px 44px 0; flex-shrink:0;">
+    <div style="padding:12px 44px 0; flex-shrink:0;">
       <div style="font-size:9px; letter-spacing:3px; color:#C32A2A; font-weight:700; text-transform:uppercase; margin-bottom:4px;">SCOPE OF WORK · היקף השירות</div>
       <div style="font-size:20px; font-weight:900; color:#1A1A1A; letter-spacing:-0.4px;">השירותים הכלולים בהצעה</div>
     </div>
@@ -111,7 +111,7 @@
       <button id="add-service-btn" class="add-service-btn" type="button">+ הוסף שירות</button>
 
       <!-- PRICE BOX -->
-      <div style="margin-top:12px; background:#C32A2A; border-radius:5px; padding:13px 20px;">
+      <div style="margin-top:8px; background:#C32A2A; border-radius:5px; padding:9px 20px;">
         <div style="font-size:8.5px; letter-spacing:2.5px; color:rgba(255,255,255,0.65); font-weight:700; text-transform:uppercase; margin-bottom:10px;">פירוט מחיר</div>
         <div style="display:flex; flex-direction:column; gap:6px;">
           <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:6px;">
@@ -140,7 +140,7 @@
     </div>
 
     <!-- FOOTER P1 -->
-    <div style="margin-top:16px; padding:11px 44px; background:#C32A2A; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+    <div style="margin-top:8px; padding:7px 44px; background:#C32A2A; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
       <div style="font-size:9.5px; color:rgba(255,255,255,0.7); direction:ltr; letter-spacing:0.3px;">050-3338265 | spicysocial.content@gmail.com</div>
       <div style="font-size:9.5px; color:rgba(255,255,255,0.5);">1 / 2</div>
     </div>
@@ -365,7 +365,7 @@
 
     var header = document.createElement('div');
     header.className = 'gheader';
-    header.style.cssText = 'display:flex; align-items:center; gap:12px; padding:10px 16px 8px; border-bottom:1px dashed #F5CCCC; position:relative;';
+    header.style.cssText = 'display:flex; align-items:center; gap:12px; padding:7px 16px 5px; border-bottom:1px dashed #F5CCCC; position:relative;';
     header.innerHTML = '<div style="width:14px;height:14px;background:#C32A2A;border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:9px;font-weight:900;line-height:1;">★</span></div>';
     var title = document.createElement('div');
     title.contentEditable = 'true';
@@ -438,8 +438,19 @@
 
     // Restore field values (client name, date, price, etc.)
     document.querySelectorAll('[data-fid]').forEach(function (el) {
-      var v = state.fields[el.dataset.fid];
-      if (v !== undefined && v !== '') el.innerHTML = v;
+      var fid = el.dataset.fid;
+      var v = state.fields[fid];
+      if (v !== undefined) {
+        el.innerHTML = v;
+      } else if (fid === 'quote-date') {
+        var today = new Date();
+        var dd = String(today.getDate()).padStart(2, '0');
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var yyyy = today.getFullYear();
+        el.innerHTML = dd + '.' + mm + '.' + yyyy;
+      } else if (fid === 'pay-day') {
+        el.innerHTML = '10';
+      }
     });
     calcPrice();
   }
