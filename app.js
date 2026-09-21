@@ -716,46 +716,111 @@
 
   /* ================= בניית עמודי ההצעה (לתצוגה ול-PDF) ================= */
 
+  // הכל כאן נכתב כ-style="..." ישירות על כל אלמנט (לא class מגיליון חיצוני).
+  // הסיבה: html2canvas לא תמיד קורא בעקביות CSS שמגיע מ-styles.css חיצוני
+  // (תופעה ידועה) - כשהעיצוב חי ב-style inline הוא תמיד נלכד נכון, בדיוק
+  // כמו בקוד המקור של page.tsx שמשתמש אך ורק ב-inline styles לעמודי ההצעה.
+
   function dateFormatter() {
     return new Intl.DateTimeFormat('he-IL', { dateStyle: 'long' });
   }
 
+  function styleStr(props) {
+    var out = '';
+    for (var key in props) {
+      if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
+      var value = props[key];
+      if (value === undefined || value === null || value === '') continue;
+      var cssKey = key.replace(/[A-Z]/g, function (m) {
+        return '-' + m.toLowerCase();
+      });
+      out += cssKey + ':' + value + ';';
+    }
+    return out;
+  }
+
+  function tag(name, props, styleProps, inner) {
+    var attrs = '';
+    for (var key in props || {}) {
+      if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
+      attrs += ' ' + key + '="' + esc(props[key]) + '"';
+    }
+    var styleAttr = styleProps ? ' style="' + styleStr(styleProps) + '"' : '';
+    return '<' + name + attrs + styleAttr + '>' + (inner || '') + '</' + name + '>';
+  }
+
+  var RED = '#c32a2a';
+  var REDSOFT = 'rgba(195, 42, 42, 0.09)';
+
   function buildDocHeader(title, small) {
     var contactLines = '';
-    if (small) {
-      contactLines = '';
-    } else {
+    if (!small) {
       contactLines =
-        '<div class="biz-name" style="font-weight:600;">' + esc(BUSINESS.businessName) + '</div>' +
-        '<div>' + esc(BUSINESS.managerName) + '</div>' +
-        (BUSINESS.phone ? '<div dir="ltr">' + esc(BUSINESS.phone) + '</div>' : '') +
-        (BUSINESS.email ? '<div dir="ltr">' + esc(BUSINESS.email) + '</div>' : '') +
-        (BUSINESS.location ? '<div>' + esc(BUSINESS.location) + '</div>' : '');
+        tag('div', null, { fontWeight: 600 }, esc(BUSINESS.businessName)) +
+        tag('div', null, null, esc(BUSINESS.managerName)) +
+        (BUSINESS.phone ? tag('div', null, { direction: 'ltr' }, esc(BUSINESS.phone)) : '') +
+        (BUSINESS.email ? tag('div', null, { direction: 'ltr' }, esc(BUSINESS.email)) : '') +
+        (BUSINESS.location ? tag('div', null, null, esc(BUSINESS.location)) : '');
     }
-    return (
-      '<div class="doc-header" style="padding:' + (small ? '28px 48px' : '40px 48px') + ';">' +
-      '<div>' +
-      '<div class="doc-eyebrow">הצעת מחיר · PRICE QUOTE</div>' +
-      '<div class="doc-title" style="font-size:' + (small ? '30px' : '44px') + ';">' + esc(title) + '</div>' +
-      (!small && BUSINESS.tagline.trim() ? '<div class="doc-tagline">' + esc(BUSINESS.tagline) + '</div>' : '') +
-      '</div>' +
-      '<div class="doc-header-right">' +
-      '<img class="doc-logo" src="' + BUSINESS.logo + '" alt="" style="height:' + (small ? '48px' : '72px') + '; margin-bottom:' + (small ? '6px' : '12px') + ';" />' +
-      '<div class="doc-contact">' + contactLines + '</div>' +
-      '</div>' +
-      '</div>'
+    return tag(
+      'div',
+      null,
+      {
+        background: REDSOFT,
+        borderBottom: '3px solid ' + RED,
+        padding: (small ? '28px' : '40px') + ' 48px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: '24px',
+      },
+      tag(
+        'div',
+        null,
+        null,
+        tag('div', null, { fontSize: '12px', fontWeight: 700, letterSpacing: '3px', color: RED, opacity: 0.75 }, 'הצעת מחיר · PRICE QUOTE') +
+          tag('div', null, { fontSize: (small ? 30 : 44) + 'px', fontWeight: 800, color: RED, lineHeight: 1.25 }, esc(title)) +
+          (!small && BUSINESS.tagline.trim()
+            ? tag('div', null, { fontSize: '15px', color: '#5c6270', marginTop: '4px' }, esc(BUSINESS.tagline))
+            : '')
+      ) +
+        tag(
+          'div',
+          null,
+          { textAlign: 'left' },
+          tag('img', { src: BUSINESS.logo, alt: '' }, {
+            height: (small ? 48 : 72) + 'px',
+            maxWidth: '220px',
+            objectFit: 'contain',
+            marginBottom: (small ? 6 : 12) + 'px',
+            marginRight: 'auto',
+            display: 'block',
+          }) + tag('div', null, { fontSize: '13px', color: '#3c4250', lineHeight: 1.8 }, contactLines)
+        )
     );
   }
 
   function buildDocFooter() {
-    return (
-      '<div class="doc-footer">' +
-      '<div>' + esc(BUSINESS.managerName) + ' · ' + esc(BUSINESS.businessName) + '</div>' +
-      '<div class="doc-footer-contact">' +
-      (BUSINESS.email ? '<span>' + esc(BUSINESS.email) + '</span>' : '') +
-      (BUSINESS.phone ? '<span>' + esc(BUSINESS.phone) + '</span>' : '') +
-      '</div>' +
-      '</div>'
+    return tag(
+      'div',
+      null,
+      {
+        borderTop: '3px solid ' + RED,
+        padding: '20px 48px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '13px',
+        color: '#5c6270',
+      },
+      tag('div', null, null, esc(BUSINESS.managerName) + ' · ' + esc(BUSINESS.businessName)) +
+        tag(
+          'div',
+          null,
+          { display: 'flex', gap: '16px', direction: 'ltr' },
+          (BUSINESS.email ? tag('span', null, null, esc(BUSINESS.email)) : '') +
+            (BUSINESS.phone ? tag('span', null, null, esc(BUSINESS.phone)) : '')
+        )
     );
   }
 
@@ -770,60 +835,151 @@
     var servicesHtml;
     if (isPackage) {
       servicesHtml =
-        '<div class="doc-services-title">' +
-        (state.priceUnit === 'month' ? 'מה כוללת החבילה החודשית' : 'מה כוללת החבילה') +
-        '</div><div class="doc-services-grid">' +
-        t.selected
-          .map(function (s) {
-            return '<div class="doc-service-row"><span class="doc-check">✓</span><span>' + esc(s.label) + '</span></div>';
-          })
-          .join('') +
-        '</div>';
+        tag(
+          'div',
+          null,
+          { background: RED, color: '#ffffff', borderRadius: '10px', padding: '11px 16px', fontSize: '15px', fontWeight: 700, marginTop: '30px' },
+          state.priceUnit === 'month' ? 'מה כוללת החבילה החודשית' : 'מה כוללת החבילה'
+        ) +
+        tag(
+          'div',
+          null,
+          { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 22px', marginTop: '14px' },
+          t.selected
+            .map(function (s) {
+              return tag(
+                'div',
+                null,
+                { display: 'flex', alignItems: 'flex-start', gap: '9px', fontSize: '13.5px', lineHeight: 1.5, padding: '5px 0' },
+                tag('span', null, { color: RED, fontWeight: 800, fontSize: '14px', lineHeight: 1.4 }, '✓') + tag('span', null, null, esc(s.label))
+              );
+            })
+            .join('')
+        );
     } else {
+      var thStyle = { padding: '12px 16px', background: RED, color: '#ffffff', fontWeight: 700 };
       servicesHtml =
-        '<table class="doc-table"><thead><tr><th>השירות</th><th>מחיר</th></tr></thead><tbody>' +
-        t.selected
-          .map(function (s) {
-            return '<tr><td>' + esc(s.label) + '</td><td>' + formatPrice(Number(s.price) || 0) + '</td></tr>';
-          })
-          .join('') +
-        '</tbody></table>';
+        tag(
+          'table',
+          null,
+          { width: '100%', marginTop: '30px', borderCollapse: 'collapse', fontSize: '14px' },
+          tag(
+            'thead',
+            null,
+            null,
+            tag(
+              'tr',
+              null,
+              null,
+              tag('th', null, Object.assign({ textAlign: 'right', borderRadius: '0 10px 10px 0' }, thStyle), 'השירות') +
+                tag('th', null, Object.assign({ textAlign: 'left', borderRadius: '10px 0 0 10px', width: '150px' }, thStyle), 'מחיר')
+            )
+          ) +
+            tag(
+              'tbody',
+              null,
+              null,
+              t.selected
+                .map(function (s, index) {
+                  var rowBg = index % 2 === 1 ? '#f9fafb' : '#ffffff';
+                  var tdBase = { padding: '11px 16px', borderBottom: '1px solid #eceef2', background: rowBg };
+                  return tag(
+                    'tr',
+                    null,
+                    null,
+                    tag('td', null, Object.assign({ fontWeight: 600 }, tdBase), esc(s.label)) +
+                      tag('td', null, Object.assign({ textAlign: 'left', whiteSpace: 'nowrap' }, tdBase), formatPrice(Number(s.price) || 0))
+                  );
+                })
+                .join('')
+            )
+        );
     }
 
-    var summaryHtml = '<div class="doc-summary">';
+    var summaryHtml = '';
     if (state.vatEnabled) {
+      var rowBase = { display: 'flex', justifyContent: 'space-between', padding: '8px 16px', color: '#3c4250' };
       summaryHtml +=
-        '<div class="doc-summary-row"><span>' + (isPackage ? 'מחיר החבילה' : 'סה״כ ביניים') + '</span><span>' + formatPrice(t.subtotal) + '</span></div>' +
-        '<div class="doc-summary-row border"><span>מע״מ (18%)</span><span>' + formatPrice(t.vatAmount) + '</span></div>';
+        tag('div', null, rowBase, tag('span', null, null, isPackage ? 'מחיר החבילה' : 'סה״כ ביניים') + tag('span', null, null, formatPrice(t.subtotal))) +
+        tag(
+          'div',
+          null,
+          Object.assign({ borderBottom: '1px solid #eceef2' }, rowBase),
+          tag('span', null, null, 'מע״מ (18%)') + tag('span', null, null, formatPrice(t.vatAmount))
+        );
     }
-    summaryHtml +=
-      '<div class="doc-summary-total" style="margin-top:' + (state.vatEnabled ? '8px' : '0') + ';">' +
-      '<span>סה״כ לתשלום' + (unitLabel(state.priceUnit) ? ' (' + unitLabel(state.priceUnit) + ')' : '') + '</span>' +
-      '<span class="amount">' + formatPrice(t.total) + '</span>' +
-      '</div></div>';
+    summaryHtml += tag(
+      'div',
+      null,
+      {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 16px',
+        background: REDSOFT,
+        borderRadius: '12px',
+        marginTop: state.vatEnabled ? '8px' : '0',
+        fontSize: '17px',
+        fontWeight: 800,
+      },
+      tag('span', null, null, 'סה״כ לתשלום' + (unitLabel(state.priceUnit) ? ' (' + unitLabel(state.priceUnit) + ')' : '')) +
+        tag('span', null, { color: RED, whiteSpace: 'nowrap' }, formatPrice(t.total))
+    );
+    summaryHtml = tag('div', null, { marginTop: '26px', marginRight: 'auto', marginLeft: '0', width: '300px', fontSize: '14px' }, summaryHtml);
 
     var notesHtml = '';
     if (state.notes.trim()) {
       notesHtml =
-        '<div class="doc-notes-label">הערות</div><div class="doc-notes-box">' + esc(state.notes) + '</div>';
+        tag('div', null, { fontSize: '13px', fontWeight: 700, color: '#8a8f9c', marginTop: '26px' }, 'הערות') +
+        tag(
+          'div',
+          null,
+          { marginTop: '8px', background: '#f6f7f9', borderRadius: '12px', padding: '14px 18px', fontSize: '13.5px', lineHeight: 1.7, whiteSpace: 'pre-wrap', color: '#3c4250' },
+          esc(state.notes)
+        );
     }
+
+    var topRow = tag(
+      'div',
+      null,
+      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px' },
+      tag(
+        'div',
+        null,
+        null,
+        tag('div', null, { fontSize: '12px', fontWeight: 700, color: '#8a8f9c', letterSpacing: '0.5px' }, 'לכבוד') +
+          tag('div', null, { fontSize: '20px', fontWeight: 700, marginTop: '4px' }, esc(state.clientName)) +
+          (state.contactName ? tag('div', null, { fontSize: '14px', color: '#5c6270', marginTop: '2px' }, 'לידי ' + esc(state.contactName)) : '')
+      ) +
+        tag(
+          'div',
+          null,
+          { textAlign: 'left', fontSize: '13px', color: '#5c6270' },
+          tag('div', null, null, esc(df.format(today))) +
+            (validUntil
+              ? tag('div', null, { marginTop: '6px', background: '#f6f7f9', borderRadius: '10px', padding: '8px 14px' }, 'ההצעה בתוקף עד ' + esc(df.format(validUntil)))
+              : '')
+        )
+    );
 
     return (
       buildDocHeader('הצעת מחיר', false) +
-      '<div class="doc-body">' +
-      '<div class="doc-toprow">' +
-      '<div><div class="doc-tolabel">לכבוד</div>' +
-      '<div class="doc-clientname">' + esc(state.clientName) + '</div>' +
-      (state.contactName ? '<div class="doc-contactname">לידי ' + esc(state.contactName) + '</div>' : '') +
-      '</div>' +
-      '<div class="doc-dateblock"><div>' + esc(df.format(today)) + '</div>' +
-      (validUntil ? '<div class="doc-validbadge">ההצעה בתוקף עד ' + esc(df.format(validUntil)) + '</div>' : '') +
-      '</div></div>' +
-      servicesHtml +
-      summaryHtml +
-      notesHtml +
-      '</div>' +
+      tag('div', null, { padding: '32px 48px', flex: 1 }, topRow + servicesHtml + summaryHtml + notesHtml) +
       buildDocFooter()
+    );
+  }
+
+  function sectionTitle(icon, label) {
+    return tag(
+      'div',
+      null,
+      { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' },
+      tag(
+        'span',
+        null,
+        { width: '34px', height: '34px', borderRadius: '9px', background: RED, color: '#ffffff', fontSize: '17px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+        icon
+      ) + tag('span', null, { fontSize: '21px', fontWeight: 800 }, label)
     );
   }
 
@@ -840,50 +996,75 @@
       return t.title.trim() || t.text.trim();
     });
 
-    var html =
-      '<div class="doc-page2-header"><div class="doc-page2-title">תנאי ההצעה</div><div class="doc-page2-biz">' +
-      esc(BUSINESS.businessName) +
-      '</div></div><div class="doc-body">';
+    var header = tag(
+      'div',
+      null,
+      { borderBottom: '3px solid ' + RED, padding: '22px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+      tag('div', null, { fontSize: '22px', fontWeight: 800 }, 'תנאי ההצעה') + tag('div', null, { fontSize: '14px', fontWeight: 700, color: RED }, esc(BUSINESS.businessName))
+    );
 
-    html +=
-      '<div class="doc-section-title"><span class="doc-section-icon">₪</span><span class="doc-section-label">תנאי תשלום</span></div>' +
-      '<div class="doc-terms-grid">' +
-      paymentTerms
-        .map(function (term) {
-          return (
-            '<div class="doc-term-card"><div class="doc-term-title">' + esc(term.title) + '</div>' +
-            '<div class="doc-term-text">' + esc(term.text) + '</div></div>'
-          );
-        })
-        .join('') +
-      '</div>';
+    var body = '';
+
+    body +=
+      sectionTitle('₪', 'תנאי תשלום') +
+      tag(
+        'div',
+        null,
+        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '34px' },
+        paymentTerms
+          .map(function (term) {
+            return tag(
+              'div',
+              null,
+              { background: '#f6f7f9', borderRight: '3px solid ' + RED, borderRadius: '10px', padding: '14px 18px' },
+              tag('div', null, { fontSize: '12px', fontWeight: 700, letterSpacing: '2px', color: '#8a8f9c', marginBottom: '6px' }, esc(term.title)) +
+                tag('div', null, { fontSize: '13.5px', lineHeight: 1.65, color: '#3c4250' }, esc(term.text))
+            );
+          })
+          .join('')
+      );
 
     if (notIncludedItems.length > 0) {
-      html +=
-        '<div class="doc-section-title"><span class="doc-section-icon">✕</span><span class="doc-section-label">מה לא כלול בחבילה</span></div>' +
-        '<div class="doc-chips">' +
-        notIncludedItems
-          .map(function (item) {
-            return '<span class="doc-chip"><span class="dash">—</span>' + esc(item) + '</span>';
-          })
-          .join('') +
-        '</div>';
+      body +=
+        sectionTitle('✕', 'מה לא כלול בחבילה') +
+        tag(
+          'div',
+          null,
+          { display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '34px' },
+          notIncludedItems
+            .map(function (item) {
+              return tag(
+                'span',
+                null,
+                { display: 'inline-flex', alignItems: 'center', gap: '8px', border: '1px solid #e3e6ec', background: '#fafbfc', borderRadius: '10px', padding: '9px 14px', fontSize: '13px', color: '#3c4250' },
+                tag('span', null, { color: '#8a8f9c' }, '—') + esc(item)
+              );
+            })
+            .join('')
+        );
     }
 
     if (generalItems.length > 0) {
-      html +=
-        '<div class="doc-section-title"><span class="doc-section-icon">!</span><span class="doc-section-label">הערות ותנאים כלליים</span></div>' +
-        '<div class="doc-general-list">' +
-        generalItems
-          .map(function (item, index) {
-            return '<div class="doc-general-item"><span class="num">' + (index + 1) + '.</span><span>' + esc(item) + '</span></div>';
-          })
-          .join('') +
-        '</div>';
+      body +=
+        sectionTitle('!', 'הערות ותנאים כלליים') +
+        tag(
+          'div',
+          null,
+          { display: 'flex', flexDirection: 'column', gap: '9px' },
+          generalItems
+            .map(function (item, index) {
+              return tag(
+                'div',
+                null,
+                { display: 'flex', gap: '10px', fontSize: '13px', lineHeight: 1.65, color: '#3c4250' },
+                tag('span', null, { fontWeight: 800, color: RED }, index + 1 + '.') + tag('span', null, null, esc(item))
+              );
+            })
+            .join('')
+        );
     }
 
-    html += '</div>' + buildDocFooter();
-    return html;
+    return header + tag('div', null, { padding: '34px 48px', flex: 1 }, body) + buildDocFooter();
   }
 
   /* ================= preview + PDF ================= */
@@ -979,16 +1160,6 @@
           });
         })
       );
-
-      // "חימום" ל-html2canvas: הקריאה הראשונה שלו בדף מפרסרת ומיישמת את
-      // הגיליון החיצוני (styles.css) לראשונה, ובפועל זה קרה לפעמים אחרי
-      // שהוא כבר התחיל לצייר - התוצאה עמוד ראשון לא מעוצב (בעיקר כשיש בו
-      // תמונה, כמו הלוגו בעמוד 1), בעוד עמוד שני נקלט תקין כי הכל כבר "חם".
-      // צילום זניח וזול של העמוד הראשון, שנזרק לפח, פותר את זה: עד שמגיעים
-      // לצילומים האמיתיים למטה, html2canvas כבר "חמם מנוע" ומיישם עיצוב נכון.
-      try {
-        await window.html2canvas(pages[0], { scale: 0.1, backgroundColor: '#ffffff', useCORS: true, logging: false });
-      } catch (e) {}
 
       var jsPDF = window.jspdf.jsPDF;
       var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
