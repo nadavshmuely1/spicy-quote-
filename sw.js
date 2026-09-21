@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spicy-quote-v1';
+const CACHE_NAME = 'spicy-quote-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,14 @@ const CORE_ASSETS = [
   './assets/spicy-logo.png',
   './assets/heebo-var-hebrew.woff2',
   './assets/heebo-var-latin.woff2',
+  './assets/heebo-400-hebrew.woff2',
+  './assets/heebo-400-latin.woff2',
+  './assets/heebo-600-hebrew.woff2',
+  './assets/heebo-600-latin.woff2',
+  './assets/heebo-700-hebrew.woff2',
+  './assets/heebo-700-latin.woff2',
+  './assets/heebo-800-hebrew.woff2',
+  './assets/heebo-800-latin.woff2',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
