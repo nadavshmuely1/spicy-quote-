@@ -1,10 +1,12 @@
-const CACHE_NAME = 'spicy-quote-v2';
+const CACHE_NAME = 'spicy-quote-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.json',
+  './vendor/html2canvas-pro.min.js',
+  './vendor/jspdf.umd.min.js',
   './assets/spicy-logo.png',
   './assets/heebo-var-hebrew.woff2',
   './assets/heebo-var-latin.woff2',
@@ -39,7 +41,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return; // let CDN scripts hit the network directly
+  if (url.origin !== self.location.origin) return; // no third-party scripts left to skip, but stay safe
 
   // network-first: תמיד מנסים לקבל את הגרסה העדכנית קודם, ורק אם אין רשת
   // (למשל היא באזור בלי קליטה) נופלים חזרה לעותק השמור מהפעם האחרונה.

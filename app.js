@@ -138,6 +138,17 @@
     });
   }
 
+  // true אם המשתמשת ערכה/מחקה/הוסיפה שירותים מאז שנבחרה החבילה הנוכחית -
+  // כדי לא לאבד עריכות בטעות אם לוחצים על חבילה אחרת בהיסח הדעת.
+  function isServicesDirty() {
+    var original = SERVICE_PRESETS[state.preset].services;
+    if (state.services.length !== original.length) return true;
+    for (var i = 0; i < original.length; i++) {
+      if (state.services[i].label !== original[i] || !state.services[i].checked) return true;
+    }
+    return false;
+  }
+
   /* ================= state ================= */
 
   function freshState() {
@@ -176,8 +187,8 @@
     var selected = selectedServices();
     var subtotal =
       state.pricingMode === 'package'
-        ? Number(state.packagePrice) || 0
-        : selected.reduce(function (sum, s) { return sum + (Number(s.price) || 0); }, 0);
+        ? Math.max(0, Number(state.packagePrice) || 0)
+        : selected.reduce(function (sum, s) { return sum + Math.max(0, Number(s.price) || 0); }, 0);
     var vatAmount = state.vatEnabled ? Math.round(subtotal * VAT_RATE * 100) / 100 : 0;
     var total = subtotal + vatAmount;
     return { selected: selected, subtotal: subtotal, vatAmount: vatAmount, total: total };
@@ -240,11 +251,16 @@
   function buildStepClient() {
     var wrap = document.createElement('div');
 
-    wrap.appendChild(
-      field('שם הלקוח או העסק', input('text', state.clientName, 'למי מיועדת ההצעה', function (v) {
-        state.clientName = v;
-      }))
-    );
+    var clientNameInput = input('text', state.clientName, 'למי מיועדת ההצעה', function (v) {
+      state.clientName = v;
+    });
+    wrap.appendChild(field('שם הלקוח או העסק', clientNameInput));
+    // פוקוס אוטומטי על השדה הראשון - זה תמיד תחילת הצעה חדשה, נוח שהסמן כבר שם
+    if (!state.clientName) {
+      setTimeout(function () {
+        clientNameInput.focus();
+      }, 0);
+    }
     wrap.appendChild(
       field('שם איש הקשר (אופציונלי)', input('text', state.contactName, 'למשל: דנה כהן', function (v) {
         state.contactName = v;
@@ -268,6 +284,10 @@
       btn.className = 'preset-btn' + (state.preset === key ? ' active' : '');
       btn.innerHTML = '<div>' + esc(preset.label) + '</div>';
       btn.addEventListener('click', function () {
+        if (state.preset === key) return;
+        if (isServicesDirty() && !confirm('החלפת החבילה תמחק את השינויים שעשית ברשימת השירותים. להמשיך?')) {
+          return;
+        }
         state.preset = key;
         state.services = servicesFromPreset(key);
         renderStep();
@@ -433,6 +453,7 @@
     checkbox.type = 'button';
     checkbox.className = 'service-checkbox';
     checkbox.textContent = service.checked ? '✓' : '';
+    checkbox.setAttribute('aria-label', service.checked ? 'הסרת השירות מהבחירה' : 'בחירת השירות');
     checkbox.addEventListener('click', function () {
       service.checked = !service.checked;
       renderStep();
@@ -468,6 +489,7 @@
     removeBtn.className = 'service-remove';
     removeBtn.textContent = '✕';
     removeBtn.title = 'הסרת שורה';
+    removeBtn.setAttribute('aria-label', 'הסרת שירות: ' + service.label);
     removeBtn.addEventListener('click', function () {
       var idx = state.services.indexOf(service);
       if (idx > -1) state.services.splice(idx, 1);
