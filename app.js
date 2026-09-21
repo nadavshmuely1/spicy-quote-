@@ -1180,7 +1180,10 @@
         wrapEl.style.width = '';
         wrapEl.style.height = '';
         wrapEl.style.overflow = 'visible';
-        var canvas = await window.html2canvas(pageEl, { scale: 3, backgroundColor: '#ffffff', useCORS: true });
+        // letterRendering: true - בלי זה html2canvas לפעמים "בולע" רווחים
+        // בין מילים בטקסט עברי (עם הפונט המשתנה Heebo), והתוצאה מילים
+        // שדבוקות זו לזו ב-PDF.
+        var canvas = await window.html2canvas(pageEl, { scale: 3, backgroundColor: '#ffffff', useCORS: true, letterRendering: true });
         pageEl.style.transform = prevTransform;
         wrapEl.style.width = prevWrapWidth;
         wrapEl.style.height = prevWrapHeight;

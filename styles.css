@@ -740,6 +740,14 @@ textarea {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
   overflow: hidden;
   flex-shrink: 0;
+  /* justify-content (ולא margin:auto על העמוד עצמו) כדי למרכז את העמוד
+     גם כשהוא מוקטן ע"י transform: כשה-wrap צר יותר מ-794px (הרוחב
+     האמיתי, לפני ה-scale), margin:0 auto על העמוד "over-constrained"
+     ומיושר לקצה (ב-RTL: לימין, עם גלישה שמאלה) במקום למורכז - פלקסבוקס
+     ממרכז נכון גם כשהילד רחב יותר מההורה. */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .new-quote-link {
