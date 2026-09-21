@@ -980,6 +980,16 @@
         })
       );
 
+      // "חימום" ל-html2canvas: הקריאה הראשונה שלו בדף מפרסרת ומיישמת את
+      // הגיליון החיצוני (styles.css) לראשונה, ובפועל זה קרה לפעמים אחרי
+      // שהוא כבר התחיל לצייר - התוצאה עמוד ראשון לא מעוצב (בעיקר כשיש בו
+      // תמונה, כמו הלוגו בעמוד 1), בעוד עמוד שני נקלט תקין כי הכל כבר "חם".
+      // צילום זניח וזול של העמוד הראשון, שנזרק לפח, פותר את זה: עד שמגיעים
+      // לצילומים האמיתיים למטה, html2canvas כבר "חמם מנוע" ומיישם עיצוב נכון.
+      try {
+        await window.html2canvas(pages[0], { scale: 0.1, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      } catch (e) {}
+
       var jsPDF = window.jspdf.jsPDF;
       var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
       var pageWidth = 210;
