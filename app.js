@@ -1152,14 +1152,87 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // PDF דרך הדפסה טבעית של הדפדפן (window.print + CSS ל-@media print), לא
-  // html2canvas. הסיבה: html2canvas מסתמך על מדידת טקסט משלו שיש לה באג
-  // מתועד וידוע ב-Safari/WebKit (במיוחד טקסט שעובר שורה) שגורם למילים
-  // להידבק זו לזו - קרה גם אחרי כמה ניסיונות תיקון ישירים בספרייה. הדפסה
-  // טבעית משתמשת במנוע הרינדור האמיתי של הדפדפן, בלי ספריית צד-שלישי
-  // שמנסה למדוד טקסט בעצמה - חסינה לחלוטין מהבאג הזה.
-  function downloadPdf() {
-    window.print();
+  async function downloadPdf() {
+    var pages = [page1El];
+    if (state.includeTermsPage) pages.push(page2El);
+    downloadBtn.disabled = true;
+    downloadBtn.textContent = 'מכין את הקובץ...';
+    try {
+      // מוודאים שהפונט (Heebo, עם unicode-range נפרד לעברית/לועזית) ותמונת
+      // הלוגו נטענו במלואם לפני הצילום - אחרת בדפדפנים מסוימים (בעיקר Safari)
+      // html2canvas עלול לתפוס פריים לפני שה-CSS/התמונה סופקו, וליצור עמוד ריק/לא מעוצב.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (e) {}
+      }
+      var imgs = [];
+      pages.forEach(function (p) {
+        p.querySelectorAll('img').forEach(function (img) {
+          imgs.push(img);
+        });
+      });
+      await Promise.all(
+        imgs.map(function (img) {
+          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+          return new Promise(function (resolve) {
+            img.addEventListener('load', resolve, { once: true });
+            img.addEventListener('error', resolve, { once: true });
+            setTimeout(resolve, 4000);
+          });
+        })
+      );
+
+      var jsPDF = window.jspdf.jsPDF;
+      var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+      var pageWidth = 210;
+      var pageHeight = 297;
+      var epsilon = 5;
+      var firstPage = true;
+
+      for (var i = 0; i < pages.length; i++) {
+        // תופסים תמיד את העמוד בגודלו האמיתי (794px), גם אם כרגע הוא מוקטן ויזואלית לתצוגת מובייל
+        var pageEl = pages[i];
+        var wrapEl = pageEl.parentElement;
+        var prevTransform = pageEl.style.transform;
+        var prevWrapWidth = wrapEl.style.width;
+        var prevWrapHeight = wrapEl.style.height;
+        var prevWrapOverflow = wrapEl.style.overflow;
+        pageEl.style.transform = 'none';
+        wrapEl.style.width = '';
+        wrapEl.style.height = '';
+        wrapEl.style.overflow = 'visible';
+        // letterRendering: true - בלי זה html2canvas לפעמים "בולע" רווחים
+        // בין מילים בטקסט עברי (עם הפונט המשתנה Heebo), והתוצאה מילים
+        // שדבוקות זו לזו ב-PDF.
+        var canvas = await window.html2canvas(pageEl, { scale: 3, backgroundColor: '#ffffff', useCORS: true, letterRendering: true });
+        pageEl.style.transform = prevTransform;
+        wrapEl.style.width = prevWrapWidth;
+        wrapEl.style.height = prevWrapHeight;
+        wrapEl.style.overflow = prevWrapOverflow;
+        var imageData = canvas.toDataURL('image/png');
+        var imageHeight = (canvas.height * pageWidth) / canvas.width;
+        var heightLeft = imageHeight;
+        var position = 0;
+        if (!firstPage) pdf.addPage();
+        firstPage = false;
+        pdf.addImage(imageData, 'PNG', 0, position, pageWidth, imageHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > epsilon) {
+          position -= pageHeight;
+          pdf.addPage();
+          pdf.addImage(imageData, 'PNG', 0, position, pageWidth, imageHeight);
+          heightLeft -= pageHeight;
+        }
+      }
+      pdf.save('הצעת מחיר - ' + (state.clientName.trim() || 'לקוח') + '.pdf');
+    } catch (err) {
+      console.error(err);
+      alert('יצירת ה-PDF נכשלה. כדאי לנסות שוב');
+    } finally {
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = 'הורדת PDF';
+    }
   }
 
   /* ================= אתחול ================= */
