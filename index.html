@@ -43,8 +43,9 @@
   <div class="preview-inner">
     <div class="preview-toolbar">
       <button type="button" class="btn btn-ghost" id="close-preview-btn">→ חזרה לעריכה</button>
-      <button type="button" class="btn btn-primary" id="download-btn">הורדת PDF</button>
+      <button type="button" class="btn btn-primary" id="download-btn">שמירה כ-PDF</button>
     </div>
+    <p class="print-hint">ייפתח חלון הדפסה. באייפון: הקשה על תצוגת ההדפסה למסך מלא (או צביטה עליה), ואז על סמל השיתוף למטה ← "שמירה בקבצים". במחשב: לבחור יעד "Save as PDF".</p>
     <div class="preview-pages">
       <div class="doc-shadow">
         <div id="doc-page1" style="width:794px;min-width:794px;min-height:1123px;flex-shrink:0;display:flex;flex-direction:column;background:#ffffff;color:#1f2430;font-family:'Heebo',sans-serif;"></div>
@@ -59,8 +60,6 @@
   </div>
 </div>
 
-<script src="vendor/html2canvas-pro.min.js" defer></script>
-<script src="vendor/jspdf.umd.min.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

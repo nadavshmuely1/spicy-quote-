@@ -1,12 +1,10 @@
-const CACHE_NAME = 'spicy-quote-v4';
+const CACHE_NAME = 'spicy-quote-v5';
 const CORE_ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.json',
-  './vendor/html2canvas-pro.min.js',
-  './vendor/jspdf.umd.min.js',
   './assets/spicy-logo.png',
   './assets/heebo-var-hebrew.woff2',
   './assets/heebo-var-latin.woff2',

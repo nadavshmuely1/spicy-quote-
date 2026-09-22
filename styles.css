@@ -788,6 +788,15 @@ textarea {
   color: #fff;
 }
 
+.print-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 0 8px;
+}
+
 .preview-pages {
   display: flex;
   flex-direction: column;
@@ -824,5 +833,78 @@ textarea {
   font-size: 12.5px;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* ---------- הדפסה (זה מה שהופך ל-PDF בפועל - לא html2canvas) ---------- */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* מסתירים הכל חוץ מהעמודים עצמם */
+  .app,
+  .preview-toolbar,
+  .print-hint,
+  .new-quote-link {
+    display: none !important;
+  }
+
+  .preview-overlay {
+    position: static !important;
+    inset: auto;
+    background: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .preview-inner {
+    max-width: none !important;
+    margin: 0 !important;
+    gap: 0 !important;
+  }
+
+  .preview-pages {
+    display: block !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .doc-shadow {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    width: auto !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  /* תמיד בגודל אמיתי בהדפסה, גם אם כרגע מוקטן ויזואלית לתצוגת מובייל */
+  #doc-page1,
+  #doc-page2 {
+    width: 210mm !important;
+    min-width: 0 !important;
+    min-height: 297mm !important;
+    transform: none !important;
+    margin: 0 auto !important;
+  }
+
+  #doc-page2 {
+    page-break-before: always;
+  }
 }
 
