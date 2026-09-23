@@ -145,13 +145,13 @@ async function fillWizardAndDownload(port, downloadDir) {
 
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
 
-  await page.type('input[type=text]', 'תכשיטים בעם');
-  await page.click('.btn-primary');
+  await page.type('#step-body input[type=text]', 'תכשיטים בעם');
+  await page.click('#next-btn');
   await new Promise((r) => setTimeout(r, 200));
-  await page.type('.price-box input[type=number]', '8000');
-  await page.click('.btn-primary');
+  await page.type('#step-body .price-box input[type=number]', '8000');
+  await page.click('#next-btn');
   await new Promise((r) => setTimeout(r, 200));
-  await page.click('.btn-primary');
+  await page.click('#next-btn');
   await page.waitForSelector('.preview-overlay.open', { timeout: 5000 });
   await new Promise((r) => setTimeout(r, 400));
 
@@ -274,13 +274,13 @@ try {
       const b = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
       const pg = await b.newPage();
       await pg.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
-      await pg.type('input[type=text]', 'תכשיטים בעם');
-      await pg.click('.btn-primary');
+      await pg.type('#step-body input[type=text]', 'תכשיטים בעם');
+      await pg.click('#next-btn');
       await new Promise((r) => setTimeout(r, 200));
-      await pg.type('.price-box input[type=number]', '8000');
-      await pg.click('.btn-primary');
+      await pg.type('#step-body .price-box input[type=number]', '8000');
+      await pg.click('#next-btn');
       await new Promise((r) => setTimeout(r, 200));
-      await pg.click('.btn-primary');
+      await pg.click('#next-btn');
       await pg.waitForSelector('.preview-overlay.open');
       const html = await pg.evaluate(() => [
         document.getElementById('doc-page1').innerHTML,

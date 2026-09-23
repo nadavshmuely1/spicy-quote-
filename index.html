@@ -28,6 +28,17 @@
     </div>
   </header>
 
+  <div class="draft-banner" id="draft-banner" style="display:none;">
+    <div class="draft-text">
+      <strong>יש הצעה שלא סיימת</strong>
+      <span id="draft-detail"></span>
+    </div>
+    <div class="draft-actions">
+      <button type="button" class="btn btn-primary" id="draft-resume-btn">להמשיך</button>
+      <button type="button" class="btn btn-ghost" id="draft-discard-btn">להתחיל חדשה</button>
+    </div>
+  </div>
+
   <ol class="step-indicator" id="step-indicator"></ol>
 
   <div class="card">
@@ -43,8 +54,11 @@
 <div class="preview-overlay" id="preview-overlay">
   <div class="preview-inner">
     <div class="preview-toolbar">
-      <button type="button" class="btn btn-ghost" id="close-preview-btn">→ חזרה לעריכה</button>
-      <button type="button" class="btn btn-primary" id="download-btn">הורדת PDF</button>
+      <button type="button" class="btn btn-ghost" id="close-preview-btn">→ חזרה</button>
+      <div class="toolbar-actions">
+        <button type="button" class="btn btn-ghost" id="download-btn">הורדה</button>
+        <button type="button" class="btn btn-primary" id="share-btn" style="display:none;">שליחה ללקוח</button>
+      </div>
     </div>
     <p class="font-warning" id="font-warning" style="display:none;">שימו לב: הפונט לא נטען כמו שצריך במכשיר הזה, וייתכן שהמילים ייצאו דבוקות ב-PDF. כדאי לסגור את האפליקציה לגמרי ולפתוח מחדש.</p>
     <div class="preview-pages">

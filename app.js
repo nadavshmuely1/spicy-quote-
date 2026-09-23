@@ -132,6 +132,13 @@
     return JSON.parse(JSON.stringify(o));
   }
 
+  // מתאים את גובה ה-textarea לתוכן. scrollHeight מוחזר 0 כל עוד האלמנט לא
+  // בתוך המסמך, ולכן זה נקרא שוב על כל השדות אחרי שהשלב נכנס ל-DOM.
+  function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
   function servicesFromPreset(key) {
     return SERVICE_PRESETS[key].services.map(function (label, i) {
       return { id: 'p-' + key + '-' + i, label: label, price: '', checked: true };
@@ -207,6 +214,11 @@
   var newQuoteBtn = document.getElementById('new-quote-btn');
   var page1El = document.getElementById('doc-page1');
   var page2El = document.getElementById('doc-page2');
+  var shareBtn = document.getElementById('share-btn');
+  var draftBanner = document.getElementById('draft-banner');
+  var draftDetailEl = document.getElementById('draft-detail');
+  var draftResumeBtn = document.getElementById('draft-resume-btn');
+  var draftDiscardBtn = document.getElementById('draft-discard-btn');
 
   /* ================= ולידציה וניווט ================= */
 
@@ -460,12 +472,17 @@
     });
     row.appendChild(checkbox);
 
-    var labelInput = document.createElement('input');
-    labelInput.type = 'text';
+    // textarea ולא input: חלק מהשירותים ארוכים מרוחב השדה (הארוך ביותר דורש
+    // 457px בשדה של 224px), וב-input הטקסט פשוט נחתך - אי אפשר לראות מה ייכתב
+    // ללקוח בלי לגרור בתוך השדה. textarea עוטף שורות וגדל לגובה התוכן.
+    var labelInput = document.createElement('textarea');
+    labelInput.rows = 1;
     labelInput.className = 'service-label-input';
     labelInput.value = service.label;
+    autoGrow(labelInput);
     labelInput.addEventListener('input', function (e) {
       service.label = e.target.value;
+      autoGrow(e.target);
     });
     row.appendChild(labelInput);
 
@@ -724,6 +741,9 @@
     if (state.step === 0) stepBodyEl.appendChild(buildStepClient());
     if (state.step === 1) stepBodyEl.appendChild(buildStepServices());
     if (state.step === 2) stepBodyEl.appendChild(buildStepTerms());
+
+    // עכשיו, כשהשדות באמת במסמך, אפשר למדוד את התוכן שלהם ולהתאים גובה
+    stepBodyEl.querySelectorAll('textarea.service-label-input').forEach(autoGrow);
 
     if (state.error) {
       errorEl.textContent = state.error;
@@ -1159,6 +1179,7 @@
     });
     requestAnimationFrame(fitDocPages);
     checkCanvasFont();
+    prefetchPdf();
   }
 
   var FONT_WARNING_TEXT = (document.getElementById('font-warning') || {}).textContent || '';
@@ -1190,11 +1211,14 @@
   window.addEventListener('resize', fitDocPages);
 
   function closePreview() {
+    shareBtn.disabled = false;
+    shareBtn.textContent = 'שליחה ללקוח';
     previewOverlay.classList.remove('open');
     document.body.style.overflow = '';
   }
 
   function resetApp() {
+    clearDraft();
     state = freshState();
     closePreview();
     renderStep();
@@ -1257,19 +1281,98 @@
     }
   }
 
-  async function downloadPdf() {
-    var fileName = quoteFileName();
+  function currentPagesHtml() {
     var pagesHtml = [page1El.innerHTML];
     if (state.includeTermsPage) pagesHtml.push(page2El.innerHTML);
+    return pagesHtml;
+  }
+
+  // ה-PDF נוצר פעם אחת לכל תוכן, וההבטחה נשמרת. שתי סיבות: לא להעסיק את השרת
+  // פעמיים כשלוחצים גם על הורדה וגם על שליחה, ובעיקר - שיתוף באייפון חייב
+  // להיקרא בתוך הלחיצה עצמה, אז ההכנה מתחילה כבר כשנפתחת התצוגה המקדימה
+  // ובדרך כלל הקובץ כבר מוכן ברגע שלוחצים.
+  var pdfCache = { key: null, promise: null };
+
+  function getPdfBlob(pagesHtml, fileName) {
+    var key = pagesHtml.join('\u0001');
+    if (pdfCache.key === key && pdfCache.promise) return pdfCache.promise;
+    var promise = requestServerPdf(pagesHtml, fileName);
+    pdfCache = { key: key, promise: promise };
+    promise.catch(function () {
+      // כישלון לא נשמר במטמון, כדי שלחיצה נוספת תנסה מחדש
+      if (pdfCache.key === key) pdfCache = { key: null, promise: null };
+    });
+    return promise;
+  }
+
+  // באייפון navigator.share חייב להיקרא בתוך הלחיצה עצמה - אם ממתינים לשרת
+  // באמצע, ההרשאה של הלחיצה פגה והשיתוף נכשל. לכן הכפתור לא זמין עד שהקובץ
+  // מוכן: כשלוחצים, השיתוף נפתח מיד.
+  function prefetchPdf() {
+    if (navigator.onLine === false) return;
+    shareBtn.disabled = true;
+    shareBtn.textContent = 'מכין...';
+    var done = function () {
+      shareBtn.disabled = false;
+      shareBtn.textContent = 'שליחה ללקוח';
+    };
+    try {
+      getPdfBlob(currentPagesHtml(), quoteFileName()).then(done, done);
+    } catch (e) {
+      done();
+    }
+  }
+
+  // כפתור השליחה מוצג רק אם המכשיר באמת יודע לשתף קובץ PDF (אייפון/אנדרואיד).
+  // במחשב אין תמיכה, ושם ההורדה היא ממילא הדרך הנכונה.
+  function canShareFiles() {
+    try {
+      if (!navigator.canShare || typeof File !== 'function') return false;
+      var probe = new File([new Blob(['x'], { type: 'application/pdf' })], 'x.pdf', {
+        type: 'application/pdf',
+      });
+      return navigator.canShare({ files: [probe] });
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function sharePdf() {
+    var fileName = quoteFileName();
+    shareBtn.disabled = true;
+    shareBtn.textContent = 'מכין...';
+    try {
+      var blob = await getPdfBlob(currentPagesHtml(), fileName);
+      var file = new File([blob], fileName + '.pdf', { type: 'application/pdf' });
+      if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
+        saveBlob(blob, fileName);
+        return;
+      }
+      await navigator.share({ files: [file], title: fileName });
+    } catch (err) {
+      // ביטול של מסך השיתוף הוא לא שגיאה, ואין מה לעשות אחריו
+      if (err && err.name === 'AbortError') return;
+      // כל כישלון אחר (כולל פקיעת ההרשאה של הלחיצה) - לפחות שתקבל את הקובץ
+      console.warn('share failed', err);
+      await downloadPdf();
+    } finally {
+      shareBtn.disabled = false;
+      shareBtn.textContent = 'שליחה ללקוח';
+    }
+  }
+
+  async function downloadPdf() {
+    var fileName = quoteFileName();
+    var pagesHtml = currentPagesHtml();
 
     downloadBtn.disabled = true;
-    downloadBtn.textContent = 'מכין את הקובץ...';
+    downloadBtn.textContent = 'מכין...';
     var warnEl = document.getElementById('font-warning');
     if (warnEl) warnEl.style.display = 'none';
 
     if (navigator.onLine !== false) {
       try {
-        var blob = await requestServerPdf(pagesHtml, fileName);
+        var blob = await getPdfBlob(pagesHtml, fileName);
         saveBlob(blob, fileName);
         return;
       } catch (err) {
@@ -1278,7 +1381,7 @@
         console.warn('server pdf failed, falling back to local rendering', err);
       } finally {
         downloadBtn.disabled = false;
-        downloadBtn.textContent = 'הורדת PDF';
+        downloadBtn.textContent = 'הורדה';
       }
     }
 
@@ -1296,7 +1399,7 @@
     var pages = [page1El];
     if (state.includeTermsPage) pages.push(page2El);
     downloadBtn.disabled = true;
-    downloadBtn.textContent = 'מכין את הקובץ...';
+    downloadBtn.textContent = 'מכין...';
     try {
       // html2canvas מודד את הטקסט מה-DOM אבל מצייר אותו על canvas עם
       // ctx.fillText - ושם הוא משתמש רק בפונט שה-canvas באמת מכיר. אם הפונט
@@ -1381,9 +1484,106 @@
       alert('יצירת ה-PDF נכשלה. כדאי לנסות שוב');
     } finally {
       downloadBtn.disabled = false;
-      downloadBtn.textContent = 'הורדת PDF';
+      downloadBtn.textContent = 'הורדה';
     }
   }
+
+  /* ================= שמירה אוטומטית של טיוטה ================= */
+
+  // האפליקציה רצה על טלפון, ושם היא נסגרת באמצע כל הזמן - שיחה נכנסת, מעבר
+  // לוואטסאפ, המערכת משחררת זיכרון. עד עכשיו כל מה שהוקלד פשוט נמחק. השמירה
+  // כאן היא על טיימר ולא על כל שינוי, כדי לא לפזר קריאות בכל מטפל קלט בקוד.
+  var DRAFT_KEY = 'spicy-quote-draft-v1';
+  var DRAFT_MAX_AGE_DAYS = 30;
+  var lastSaved = null;
+
+  function draftIsWorthKeeping(s) {
+    return Boolean(
+      (s.clientName && s.clientName.trim()) ||
+        (s.contactName && s.contactName.trim()) ||
+        (s.packagePrice && String(s.packagePrice).trim()) ||
+        (s.notes && s.notes.trim())
+    );
+  }
+
+  function persistDraft() {
+    try {
+      if (!draftIsWorthKeeping(state)) return;
+      var snapshot = JSON.stringify(state);
+      if (snapshot === lastSaved) return;
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), state: state }));
+      lastSaved = snapshot;
+    } catch (e) {
+      // מצב גלישה פרטית או אחסון מלא - אין מה לעשות, פשוט בלי שמירה
+    }
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (e) {}
+    lastSaved = null;
+  }
+
+  function readDraft() {
+    try {
+      var raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.state || !parsed.savedAt) return null;
+      var ageDays = (Date.now() - parsed.savedAt) / 86400000;
+      if (ageDays > DRAFT_MAX_AGE_DAYS || ageDays < 0) return null;
+      if (!draftIsWorthKeeping(parsed.state)) return null;
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function describeAge(savedAt) {
+    var minutes = Math.round((Date.now() - savedAt) / 60000);
+    if (minutes < 2) return 'לפני רגע';
+    if (minutes < 60) return 'לפני ' + minutes + ' דקות';
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) return 'לפני ' + hours + (hours === 1 ? ' שעה' : ' שעות');
+    var days = Math.round(hours / 24);
+    return 'לפני ' + days + (days === 1 ? ' יום' : ' ימים');
+  }
+
+  function offerDraft() {
+    var draft = readDraft();
+    if (!draft) return;
+    var name = (draft.state.clientName || '').trim();
+    draftDetailEl.textContent =
+      (name ? 'עבור ' + name + ' · ' : '') + 'נשמרה ' + describeAge(draft.savedAt);
+    draftBanner.style.display = 'flex';
+
+    draftResumeBtn.addEventListener('click', function () {
+      // ממזגים לתוך מצב חדש, כדי ששדה שנוסף לאפליקציה מאז השמירה לא יהיה חסר
+      var restored = freshState();
+      Object.keys(draft.state).forEach(function (key) {
+        if (key in restored) restored[key] = draft.state[key];
+      });
+      state = restored;
+      state.error = null;
+      draftBanner.style.display = 'none';
+      renderStep();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    draftDiscardBtn.addEventListener('click', function () {
+      clearDraft();
+      draftBanner.style.display = 'none';
+    });
+  }
+
+  setInterval(persistDraft, 2000);
+  // באייפון הדף לרוב לא מקבל unload בכלל - pagehide ו-visibilitychange הם
+  // ההזדמנות האחרונה לשמור לפני שהמערכת מקפיאה את האפליקציה
+  window.addEventListener('pagehide', persistDraft);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') persistDraft();
+  });
 
   /* ================= אתחול ================= */
 
@@ -1391,12 +1591,21 @@
   nextBtn.addEventListener('click', goNext);
   closePreviewBtn.addEventListener('click', closePreview);
   downloadBtn.addEventListener('click', downloadPdf);
+  shareBtn.addEventListener('click', sharePdf);
+  if (canShareFiles()) {
+    shareBtn.style.display = '';
+  } else {
+    // בלי שיתוף (במחשב), ההורדה היא הפעולה הראשית ולא משנית
+    downloadBtn.classList.remove('btn-ghost');
+    downloadBtn.classList.add('btn-primary');
+  }
   newQuoteBtn.addEventListener('click', function () {
     if (confirm('להתחיל הצעת מחיר חדשה? כל מה שמילאת בהצעה הנוכחית יימחק.')) {
       resetApp();
     }
   });
 
+  offerDraft();
   renderStep();
 
   if ('serviceWorker' in navigator) {
