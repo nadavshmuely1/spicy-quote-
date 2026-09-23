@@ -59,18 +59,6 @@
         'עד 2 סבבי תיקונים לכל סרטון',
       ],
     },
-    copyManage: {
-      label: 'קופי וניהול בלבד',
-      hint: 'ללקוח עם צוות הפקה משלו',
-      services: [
-        'כתיבת תסריטים ובניית רעיונות תוכן',
-        'כתיבת קופי מותאם לכל תוכן',
-        'התאמת התכנים לפלטפורמות (אינסטגרם / טיקטוק / פייסבוק)',
-        'העלאת תכנים לכל הפלטפורמות',
-        'חיבור מלא לעמוד העסקי - ניהול story שוטף, מענה לתגובות והודעות פרטיות',
-        'בוסט (ממומן) - בתיאום מראש',
-      ],
-    },
   };
 
   var DEFAULT_PAYMENT_TERMS = [
@@ -148,7 +136,11 @@
   // true אם המשתמשת ערכה/מחקה/הוסיפה שירותים מאז שנבחרה החבילה הנוכחית -
   // כדי לא לאבד עריכות בטעות אם לוחצים על חבילה אחרת בהיסח הדעת.
   function isServicesDirty() {
-    var original = SERVICE_PRESETS[state.preset].services;
+    var preset = SERVICE_PRESETS[state.preset];
+    // טיוטה שנשמרה כשעוד הייתה חבילה שהוסרה מאז - נחשבת ערוכה, כדי שהמעבר
+    // לחבילה אחרת יבקש אישור לפני שידרוס את השירותים ששמורים בה
+    if (!preset) return true;
+    var original = preset.services;
     if (state.services.length !== original.length) return true;
     for (var i = 0; i < original.length; i++) {
       if (state.services[i].label !== original[i] || !state.services[i].checked) return true;

@@ -16,6 +16,8 @@
 //    כי type="number" לבדו לא מספיק - צריך inputmode.
 // 6. בלי חיבור נוצר קובץ על המכשיר, ושם העברית נשברה. היום לא נוצר קובץ
 //    בכלל בלי חיבור, ובמקומו מוצגת הודעה - כדי שלא יישלח ללקוח קובץ שבור.
+// 7. כשהוסרה חבילת שירות, טיוטה שנשמרה איתה הפילה את האפליקציה
+//    (SERVICE_PRESETS[preset] undefined ב-isServicesDirty).
 //
 // הבדיקה רצה בכמה רוחבי מסך, כי הבאג הראשון תלוי ברוחב.
 //
@@ -121,6 +123,96 @@ async function measure(page, perService) {
       rowWidth: rows[0].clientWidth,
     };
   });
+}
+
+// בורר החבילות, והתאוששות מטיוטה ששמורה עם חבילה שכבר לא קיימת
+async function presetPicker(browser, port) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e.message)));
+
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
+  await page.type('#step-body input[type=text]', 'תכשיטים בעם');
+  await page.click('#next-btn');
+  await wait(400);
+
+  const presets = await page.evaluate(() =>
+    [...document.querySelectorAll('.preset-btn')].map((b) => b.textContent.trim())
+  );
+  check('חבילות · שתי חבילות בלבד', presets.length === 2, presets.join(' | '));
+  check('חבילות · "קופי וניהול בלבד" הוסר', !presets.some((p) => p.includes('קופי וניהול')));
+  check(
+    'חבילות · שתי החבילות שנשארו הן הנכונות',
+    presets.some((p) => p.includes('חבילה מלאה')) && presets.some((p) => p.includes('צילום ועריכה')),
+    presets.join(' | ')
+  );
+
+  await page.evaluate(() =>
+    [...document.querySelectorAll('.preset-btn')].find((b) => b.textContent.includes('צילום ועריכה')).click()
+  );
+  await wait(400);
+  const switched = await page.evaluate(() => ({
+    active: document.querySelector('.preset-btn.active').textContent.trim(),
+    rows: document.querySelectorAll('.service-row').length,
+  }));
+  check(
+    'חבילות · מעבר בין החבילות עובד',
+    switched.active.includes('צילום ועריכה') && switched.rows === 7,
+    `${switched.active} · ${switched.rows} שירותים`
+  );
+  await page.close();
+
+  // טיוטה ששמורה עם חבילה שהוסרה. בלי הגנה ב-isServicesDirty זה זרק
+  // "Cannot read properties of undefined (reading 'services')" והאפליקציה נתקעה.
+  const legacy = await browser.newPage();
+  await legacy.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const legacyErrors = [];
+  legacy.on('pageerror', (e) => legacyErrors.push(String(e.message)));
+  await legacy.evaluateOnNewDocument(
+    (d) => localStorage.setItem('spicy-quote-draft-v1', d),
+    JSON.stringify({
+      savedAt: Date.now(),
+      completed: false,
+      state: {
+        step: 1,
+        clientName: 'לקוח ישן',
+        preset: 'copyManage',
+        packagePrice: '5000',
+        services: [{ id: 'x', label: 'שירות ישן', price: '', checked: true }],
+      },
+    })
+  );
+  await legacy.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
+  await wait(300);
+  await legacy.click('#draft-resume-btn');
+  await wait(500);
+  const restored = await legacy.evaluate(() => ({
+    rows: document.querySelectorAll('.service-row').length,
+    label: (document.querySelector('.service-label-input') || {}).value,
+    active: document.querySelectorAll('.preset-btn.active').length,
+  }));
+  check(
+    'חבילות · טיוטה עם חבילה שהוסרה נטענת בלי לקרוס',
+    restored.rows === 1 && restored.label === 'שירות ישן',
+    JSON.stringify(restored)
+  );
+  check('חבילות · אף חבילה לא מסומנת כשהשמורה כבר לא קיימת', restored.active === 0);
+
+  let asked = false;
+  legacy.on('dialog', async (d) => {
+    asked = true;
+    await d.dismiss();
+  });
+  await legacy.evaluate(() =>
+    [...document.querySelectorAll('.preset-btn')].find((b) => b.textContent.includes('חבילה מלאה')).click()
+  );
+  await wait(600);
+  check('חבילות · החלפת חבילה מטיוטה ישנה מבקשת אישור', asked);
+  const kept = await legacy.evaluate(() => (document.querySelector('.service-label-input') || {}).value);
+  check('חבילות · אחרי ביטול השירות הישן נשמר', kept === 'שירות ישן', kept);
+  check('חבילות · אין שגיאות JS', legacyErrors.length === 0 && errors.length === 0, legacyErrors[0] || errors[0]);
+  await legacy.close();
 }
 
 // בלי חיבור: לא נוצר קובץ, מוצגת הודעה, וההצעה לא מסומנת כגמורה
@@ -410,6 +502,7 @@ try {
     await page.close();
   }
 
+  await presetPicker(browser, port);
   await numericKeyboards(browser, port);
   await offlineBehaviour(browser, port, await fsp.mkdtemp(path.join(os.tmpdir(), 'spicy-ui-')));
   await draftLifecycle(browser, port);
