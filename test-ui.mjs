@@ -12,6 +12,8 @@
 //    בתוך .vat-toggle.
 // 4. "יש הצעה שלא סיימת" הופיע גם על הצעות שכבר נוצרו ונשלחו, כי הטיוטה
 //    נמחקה רק בלחיצה על "התחלת הצעת מחיר חדשה".
+// 5. שדות המחיר פתחו באייפון את מקלדת הסימנים (עם אותיות) במקום לוח ספרות,
+//    כי type="number" לבדו לא מספיק - צריך inputmode.
 //
 // הבדיקה רצה בכמה רוחבי מסך, כי הבאג הראשון תלוי ברוחב.
 //
@@ -104,6 +106,70 @@ async function measure(page, perService) {
       rowWidth: rows[0].clientWidth,
     };
   });
+}
+
+// כל שדה מספרי חייב inputmode, אחרת באייפון נפתחת מקלדת עם אותיות
+async function numericKeyboards(browser, port) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
+  await page.type('#step-body input[type=text]', 'תכשיטים בעם');
+  await page.click('#next-btn');
+  await wait(400);
+
+  const packagePrice = await page.evaluate(() => {
+    const el = document.querySelector('#step-body .price-box input[type=number]');
+    return { mode: el.getAttribute('inputmode'), min: el.min };
+  });
+  check('מקלדת · מחיר החבילה פותח לוח ספרות', packagePrice.mode === 'decimal', `inputmode=${packagePrice.mode}`);
+
+  // מצב "מחיר לכל שירות"
+  await page.evaluate(() => {
+    [...document.querySelectorAll('.mode-option')]
+      .find((o) => o.textContent.includes('מחיר לכל שירות'))
+      .querySelector('input')
+      .click();
+  });
+  await wait(350);
+  const perService = await page.evaluate(() =>
+    [...document.querySelectorAll('.service-price-input')].map((el) => el.getAttribute('inputmode'))
+  );
+  check(
+    'מקלדת · מחיר לכל שירות פותח לוח ספרות',
+    perService.length > 0 && perService.every((m) => m === 'decimal'),
+    `${perService.filter((m) => m !== 'decimal').length} שדות בלי inputmode`
+  );
+
+  // השדה עדיין מקבל ערך תקין, כולל אגורות
+  await page.evaluate(() => {
+    [...document.querySelectorAll('.mode-option')]
+      .find((o) => o.textContent.includes('מחיר כולל לחבילה'))
+      .querySelector('input')
+      .click();
+  });
+  await wait(350);
+  await page.type('#step-body .price-box input[type=number]', '8000.5');
+  const typed = await page.evaluate(
+    () => document.querySelector('#step-body .price-box input[type=number]').value
+  );
+  check('מקלדת · אפשר עדיין להקליד מחיר עם אגורות', typed === '8000.5', `התקבל "${typed}"`);
+
+  // שדה התוקף - ימים שלמים
+  await page.click('#next-btn');
+  await wait(400);
+  const days = await page.evaluate(() => {
+    const el = document.querySelector('#step-body .validity-row input[type=number]');
+    return el ? el.getAttribute('inputmode') : null;
+  });
+  check('מקלדת · תוקף ההצעה פותח לוח ספרות שלמות', days === 'numeric', `inputmode=${days}`);
+
+  // אין שדה מספרי ששכחנו
+  const missing = await page.evaluate(
+    () => [...document.querySelectorAll('input[type=number]')].filter((el) => !el.getAttribute('inputmode')).length
+  );
+  check('מקלדת · לא נשאר שדה מספרי בלי inputmode', missing === 0, `${missing} שדות`);
+
+  await page.close();
 }
 
 // מחזור החיים של הטיוטה: מה נחשב "הצעה שלא סיימת"
@@ -257,6 +323,7 @@ try {
     await page.close();
   }
 
+  await numericKeyboards(browser, port);
   await draftLifecycle(browser, port);
 } finally {
   await browser.close();

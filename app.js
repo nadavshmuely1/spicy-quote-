@@ -392,6 +392,10 @@
       priceBox.innerHTML = '<span class="title">מחיר החבילה:</span>';
       var priceInput = document.createElement('input');
       priceInput.type = 'number';
+      // באייפון type="number" לבדו פותח את מקלדת הסימנים (עם אותיות ופיסוק).
+      // inputmode הוא מה שמבקש את לוח הספרות הגדול. decimal ולא numeric כדי
+      // שתישאר נקודה עשרונית למחיר עם אגורות - עדיין בלי שום אות.
+      priceInput.inputMode = 'decimal';
       priceInput.min = '0';
       priceInput.dir = 'ltr';
       priceInput.placeholder = 'מחיר';
@@ -489,6 +493,7 @@
     if (service.checked && state.pricingMode === 'perService') {
       var priceInput = document.createElement('input');
       priceInput.type = 'number';
+      priceInput.inputMode = 'decimal';
       priceInput.min = '0';
       priceInput.dir = 'ltr';
       priceInput.className = 'service-price-input';
@@ -557,6 +562,7 @@
     if (!state.noValidity) {
       var daysInput = document.createElement('input');
       daysInput.type = 'number';
+      daysInput.inputMode = 'numeric';
       daysInput.min = '1';
       daysInput.dir = 'ltr';
       daysInput.value = state.validityDays;
