@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:pdf": "node test-pdf.mjs"
+    "test": "node test-pdf.mjs && node test-ui.mjs",
+    "test:pdf": "node test-pdf.mjs",
+    "test:ui": "node test-ui.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",

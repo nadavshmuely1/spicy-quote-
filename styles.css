@@ -319,6 +319,7 @@ textarea {
 .service-row {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -354,8 +355,14 @@ textarea {
 }
 
 .service-label-input {
-  flex: 1;
-  min-width: 0;
+  /* min-width אמיתי ולא 0: בלעדיו, כשנבחר "מחיר לכל שירות" ושדה המחיר נכנס
+     לשורה, השדה הזה נמחץ לרוחב של תו אחד והטקסט נמרח מלמעלה למטה. עם רצפה
+     והשורה עוטפת, שדה המחיר יורד לשורה הבאה במקום למחוץ את הטקסט. */
+  /* הבסיס חייב להיות קטן מספיק שכל ארבעת הפריטים ייכנסו בשורה אחת (21 לצ'קבוקס
+     + 88 למחיר + 19 לאיקס + 30 למרווחים = 158 מתוך 286), אחרת flex עוטף את
+     האיקס לשורה נפרדת במקום לצמצם. */
+  flex: 1 1 100px;
+  min-width: 100px;
   border: 1px solid transparent;
   background: transparent;
   padding: 5px 8px;
@@ -376,8 +383,11 @@ textarea {
   box-shadow: none;
 }
 
-.service-price-input {
-  flex-shrink: 0;
+/* input.<class> ולא .<class> בלבד: לכלל הבסיס input[type='number'] יש
+   ספציפיות גבוהה יותר ממחלקה בודדת, אז width:100% שלו ניצח כאן ושדה המחיר
+   תפס 286px מתוך השורה. */
+input.service-price-input {
+  flex: 0 0 88px;
   width: 88px;
   padding: 7px 8px;
   text-align: left;
