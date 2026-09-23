@@ -252,6 +252,22 @@ try {
   const avg = lens.reduce((a, b) => a + b, 0) / lens.length;
   check('הטקסט לא מפורק לתווים בודדים', avg > 3, `אורך ממוצע ${avg.toFixed(1)} תווים`);
 
+  // כרום שמייצר את ה-PDF רץ על לינוקס בלי פונטי מערכת, ו-Heebo לא מכיל סימנים
+  // כמו ✓ או ✕ - הם יוצאים שם ריבועים ריקים (במק זה לא נראה, כי למק יש פונט
+  // נפילה). לכן כל סימן כזה במסמך חייב להיות SVG ולא תו. אומת מול השרת עצמו:
+  // ₪ (U+20AA) ו-— (U+2014) כן קיימים, ✓ (U+2713), ✕ (U+2715) ו-→ (U+2192) לא.
+  const SAFE_ABOVE_2000 = new Set([0x20aa, 0x2014]);
+
+  // בדיקת ה-bidi לא תופסת את זה, כי ריבוע ריק עדיין מחזיר את התו הנכון בטקסט
+  function riskyGlyphs(html) {
+    const bad = new Set();
+    for (const ch of html) {
+      const code = ch.codePointAt(0);
+      if (code > 0x2000 && !SAFE_ABOVE_2000.has(code)) bad.add(ch);
+    }
+    return [...bad];
+  }
+
   // בדיקה שהפלט לא תלוי ברשת של המכשיר: רינדור ישיר בשרת חייב להיות זהה
   const direct = await renderPdf(
     await (async () => {
@@ -271,6 +287,12 @@ try {
         document.getElementById('doc-page2').innerHTML,
       ]);
       await b.close();
+      const risky = riskyGlyphs(html.join(''));
+      check(
+        'אין סימנים שהשרת לא יודע לצייר (צריך SVG במקומם)',
+        risky.length === 0,
+        risky.map((c) => c + ' U+' + c.codePointAt(0).toString(16).toUpperCase()).join(' ')
+      );
       return html;
     })()
   );

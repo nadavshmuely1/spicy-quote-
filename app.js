@@ -771,6 +771,27 @@
     return '<' + name + attrs + styleAttr + '>' + (inner || '') + '</' + name + '>';
   }
 
+  // ✓ ו-✕ מצוירים כ-SVG ולא כתווים. הסיבה: את ה-PDF מייצר כרום על שרת לינוקס,
+  // ושם אין פונט מערכת שמכיל את התווים האלה (Heebo לא כולל אותם) - הם יצאו
+  // ריבועים ריקים. SVG לא תלוי בפונט בכלל ונראה זהה בתצוגה ובקובץ.
+  function iconCheck(color, size) {
+    return (
+      '<svg width="' + size + '" height="' + size + '" viewBox="0 0 16 16" fill="none" ' +
+      'xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;">' +
+      '<path d="M3 8.6 L6.3 11.9 L13 4.6" stroke="' + color + '" stroke-width="2.3" ' +
+      'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    );
+  }
+
+  function iconX(color, size) {
+    return (
+      '<svg width="' + size + '" height="' + size + '" viewBox="0 0 16 16" fill="none" ' +
+      'xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;">' +
+      '<path d="M4.2 4.2 L11.8 11.8 M11.8 4.2 L4.2 11.8" stroke="' + color + '" stroke-width="2.3" ' +
+      'stroke-linecap="round"/></svg>'
+    );
+  }
+
   var RED = '#c32a2a';
   var REDSOFT = 'rgba(195, 42, 42, 0.09)';
 
@@ -873,7 +894,8 @@
                 'div',
                 null,
                 { display: 'flex', alignItems: 'flex-start', gap: '9px', fontSize: '13.5px', lineHeight: 1.5, padding: '5px 0' },
-                tag('span', null, { color: RED, fontWeight: 800, fontSize: '14px', lineHeight: 1.4 }, '✓') + tag('span', null, null, esc(s.label))
+                tag('span', null, { display: 'block', marginTop: '3px' }, iconCheck(RED, 13)) +
+                  tag('span', null, null, esc(s.label))
               );
             })
             .join('')
@@ -1048,7 +1070,7 @@
 
     if (notIncludedItems.length > 0) {
       body +=
-        sectionTitle('✕', 'מה לא כלול בחבילה') +
+        sectionTitle(iconX('#ffffff', 15), 'מה לא כלול בחבילה') +
         tag(
           'div',
           null,
