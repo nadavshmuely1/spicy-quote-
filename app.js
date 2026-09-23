@@ -1180,6 +1180,8 @@
     requestAnimationFrame(fitDocPages);
     checkCanvasFont();
     prefetchPdf();
+    // ההצעה הגיעה למסך הסופי - מכאן היא לא "הצעה שלא סיימת"
+    markDelivered();
   }
 
   var FONT_WARNING_TEXT = (document.getElementById('font-warning') || {}).textContent || '';
@@ -1497,6 +1499,31 @@
   var DRAFT_MAX_AGE_DAYS = 30;
   var lastSaved = null;
 
+  // "הצעה שלא סיימת" = הצעה שמעולם לא הגיעה למסך הסופי. ברגע שנלחץ "צור הצעת
+  // מחיר" וההצעה הוצגה, היא נחשבת גמורה ולא מציקים עליה בפתיחה הבאה.
+  //
+  // מה שהופך את זה לבטוח: משווים את *תוכן* ההצעה לזה שהוצג. אם חוזרים אחורה
+  // ומשנים משהו, התוכן כבר לא זהה וההצעה חוזרת להיות טיוטה פתוחה. מעבר בין
+  // שלבים או פתיחת אזור התנאים לא נחשבים שינוי תוכן.
+  var deliveredSnapshot = null;
+
+  function contentSnapshot(source) {
+    var copy = JSON.parse(JSON.stringify(source || state));
+    delete copy.step;
+    delete copy.error;
+    delete copy.termsOpen;
+    return JSON.stringify(copy);
+  }
+
+  function markDelivered() {
+    deliveredSnapshot = contentSnapshot();
+    persistDraft();
+  }
+
+  function isDelivered() {
+    return deliveredSnapshot !== null && contentSnapshot() === deliveredSnapshot;
+  }
+
   function draftIsWorthKeeping(s) {
     return Boolean(
       (s.clientName && s.clientName.trim()) ||
@@ -1509,10 +1536,16 @@
   function persistDraft() {
     try {
       if (!draftIsWorthKeeping(state)) return;
-      var snapshot = JSON.stringify(state);
-      if (snapshot === lastSaved) return;
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), state: state }));
-      lastSaved = snapshot;
+      var completed = isDelivered();
+      // ההצעה נשמרת גם כשהיא גמורה - רק לא מציעים להמשיך אותה. כך היא עדיין
+      // כאן אם יתברר שצריך אותה, ויש בסיס ל"שכפול ההצעה האחרונה" בהמשך.
+      var fingerprint = (completed ? '1|' : '0|') + JSON.stringify(state);
+      if (fingerprint === lastSaved) return;
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ savedAt: Date.now(), completed: completed, state: state })
+      );
+      lastSaved = fingerprint;
     } catch (e) {
       // מצב גלישה פרטית או אחסון מלא - אין מה לעשות, פשוט בלי שמירה
     }
@@ -1523,6 +1556,7 @@
       localStorage.removeItem(DRAFT_KEY);
     } catch (e) {}
     lastSaved = null;
+    deliveredSnapshot = null;
   }
 
   function readDraft() {
@@ -1533,6 +1567,10 @@
       if (!parsed || !parsed.state || !parsed.savedAt) return null;
       var ageDays = (Date.now() - parsed.savedAt) / 86400000;
       if (ageDays > DRAFT_MAX_AGE_DAYS || ageDays < 0) return null;
+      // טיוטה מהגרסה הקודמת נשמרה בלי הסימון הזה, ושם *כל* הצעה נשארה פתוחה
+      // לנצח - כולל כאלה שכבר נוצרו ונשלחו. זו בדיוק הנטרודות שנדב דיווח
+      // עליה, אז טיוטה בפורמט הישן נחשבת גמורה ולא מוצעת שוב.
+      if (!('completed' in parsed) || parsed.completed) return null;
       if (!draftIsWorthKeeping(parsed.state)) return null;
       return parsed;
     } catch (e) {

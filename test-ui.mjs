@@ -10,6 +10,8 @@
 //    ארוכים מהשדה ואי אפשר היה לראות מה ייכתב ללקוח.
 // 3. "להצעהכברירת" - שתי מילים דבוקות, כי ל-.opt-hint לא היה display:block
 //    בתוך .vat-toggle.
+// 4. "יש הצעה שלא סיימת" הופיע גם על הצעות שכבר נוצרו ונשלחו, כי הטיוטה
+//    נמחקה רק בלחיצה על "התחלת הצעת מחיר חדשה".
 //
 // הבדיקה רצה בכמה רוחבי מסך, כי הבאג הראשון תלוי ברוחב.
 //
@@ -104,6 +106,96 @@ async function measure(page, perService) {
   });
 }
 
+// מחזור החיים של הטיוטה: מה נחשב "הצעה שלא סיימת"
+async function draftLifecycle(browser, port) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e.message)));
+
+  const stored = () =>
+    page.evaluate(() => {
+      const raw = localStorage.getItem('spicy-quote-draft-v1');
+      return raw ? JSON.parse(raw) : null;
+    });
+  const bannerShown = () =>
+    page.evaluate(() => document.getElementById('draft-banner').style.display === 'flex');
+
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
+
+  // נעזבה באמצע -> טיוטה פתוחה
+  await page.type('#step-body input[type=text]', 'תכשיטים בעם');
+  await page.click('#next-btn');
+  await wait(300);
+  await page.type('#step-body .price-box input[type=number]', '8000');
+  await wait(2600);
+  const midway = await stored();
+  check('טיוטה · הצעה שנעזבה באמצע נשמרת כלא גמורה', midway && midway.completed === false);
+  await page.reload({ waitUntil: 'networkidle0' });
+  await wait(300);
+  check('טיוטה · הבאנר מופיע על הצעה שנעזבה באמצע', await bannerShown());
+
+  // הושלמה עד המסך הסופי -> גמורה
+  await page.click('#draft-resume-btn');
+  await wait(400);
+  await page.click('#next-btn');
+  await wait(300);
+  await page.click('#next-btn');
+  await page.waitForSelector('.preview-overlay.open');
+  await wait(2600);
+  const done = await stored();
+  check('טיוטה · אחרי "צור הצעת מחיר" ההצעה מסומנת גמורה', done && done.completed === true);
+  await page.reload({ waitUntil: 'networkidle0' });
+  await wait(400);
+  check('טיוטה · אין באנר על הצעה שכבר נוצרה', (await bannerShown()) === false);
+
+  // ניווט בין שלבים בלי לשנות תוכן -> נשארת גמורה
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.type('#step-body input[type=text]', 'לקוח שני');
+  await page.click('#next-btn');
+  await wait(300);
+  await page.type('#step-body .price-box input[type=number]', '5000');
+  await page.click('#next-btn');
+  await wait(300);
+  await page.click('#next-btn');
+  await page.waitForSelector('.preview-overlay.open');
+  await wait(2600);
+  await page.click('#close-preview-btn');
+  await wait(300);
+  await page.click('#back-btn');
+  await wait(300);
+  await page.click('#next-btn');
+  await wait(2600);
+  const navigated = await stored();
+  check('טיוטה · מעבר בין שלבים לבדו לא מחזיר אותה לטיוטה', navigated && navigated.completed === true);
+
+  // שינוי תוכן אחרי היצירה -> חוזרת להיות טיוטה
+  await page.click('#back-btn');
+  await wait(300);
+  await page.type('#step-body .price-box input[type=number]', '9');
+  await wait(2600);
+  const edited = await stored();
+  check('טיוטה · שינוי תוכן אחרי היצירה מחזיר אותה לטיוטה', edited && edited.completed === false);
+  await page.reload({ waitUntil: 'networkidle0' });
+  await wait(400);
+  check('טיוטה · הבאנר חוזר אחרי שינוי תוכן', await bannerShown());
+
+  // טיוטה בפורמט הישן (בלי הסימון) נחשבת גמורה
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'spicy-quote-draft-v1',
+      JSON.stringify({ savedAt: Date.now(), state: { clientName: 'לקוח ישן', packagePrice: '1000' } })
+    );
+  });
+  await page.reload({ waitUntil: 'networkidle0' });
+  await wait(400);
+  check('טיוטה · טיוטה מהפורמט הישן לא מציקה שוב', (await bannerShown()) === false);
+
+  check('טיוטה · אין שגיאות JS', errors.length === 0, errors[0]);
+  await page.close();
+}
+
 const { server, port } = await startServer();
 const browser = await puppeteer.launch({
   executablePath: CHROME,
@@ -164,6 +256,8 @@ try {
     check(`${width}px · אין שגיאות JS`, errors.length === 0, errors[0]);
     await page.close();
   }
+
+  await draftLifecycle(browser, port);
 } finally {
   await browser.close();
   server.close();
