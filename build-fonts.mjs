@@ -16,7 +16,12 @@
 // קובצי המקור נוצרו מהפונט הרשמי Heebo[wght].ttf של Google Fonts:
 //   fontTools.varLib.instancer -> משקל קבוע -> woff2
 //
-// להרצה אחרי כל שינוי בקובצי הפונט:  node build-fonts.mjs
+// הקובץ הזה מייצר גם את api/_assets.js - אותם נתונים בדיוק (פונטים + לוגו)
+// כמודול JS שהפונקציה בשרת מייבאת. הסיבה: פונקציה ב-Vercel נארזת לפי הייבואים
+// שלה, אז ייבוא סטטי תמיד יגיע לשרת - בניגוד לקריאת קובץ מהדיסק, שתלויה
+// בהגדרת includeFiles ואם היא נכשלת ה-PDF היה יוצא בלי הפונט העברי.
+//
+// להרצה אחרי כל שינוי בקובצי הפונט או בלוגו:  node build-fonts.mjs
 
 import { readFileSync, writeFileSync } from 'fs';
 
@@ -32,3 +37,13 @@ for (const weight of weights) {
 
 writeFileSync('fonts.css', css);
 console.log(`fonts.css written: ${(css.length / 1024).toFixed(1)} KB`);
+
+const logo = readFileSync('assets/spicy-logo.png').toString('base64');
+const assets = `// נוצר אוטומטית ע"י build-fonts.mjs - אין לערוך ידנית
+export const FONTS_CSS = ${JSON.stringify(css)};
+export const ASSETS = {
+  'spicy-logo.png': 'data:image/png;base64,${logo}',
+};
+`;
+writeFileSync('api/_assets.js', assets);
+console.log(`api/_assets.js written: ${(assets.length / 1024).toFixed(1)} KB`);

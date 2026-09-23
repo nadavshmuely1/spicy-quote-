@@ -1139,12 +1139,19 @@
     checkCanvasFont();
   }
 
-  // בדיקה עצמית שרצה על המכשיר עצמו: אם ה-canvas לא מצליח להשתמש בפונט
-  // האמיתי, הטקסט ב-PDF ייצא עם מילים דבוקות. במקום שזה ייצא שבור בשקט,
-  // עדיף שהאפליקציה תגיד את זה מראש.
+  var FONT_WARNING_TEXT = (document.getElementById('font-warning') || {}).textContent || '';
+
+  // בדיקה עצמית שרצה על המכשיר עצמו, ורלוונטית רק למסלול המקומי (בלי רשת):
+  // אם ה-canvas לא מצליח להשתמש בפונט האמיתי, הטקסט ב-PDF ייצא עם מילים
+  // דבוקות. כשיש רשת ה-PDF נוצר בשרת ולא יכול להישבר, אז אין מה להזהיר.
   function checkCanvasFont() {
     var warnEl = document.getElementById('font-warning');
     if (!warnEl) return;
+    warnEl.textContent = FONT_WARNING_TEXT;
+    if (navigator.onLine !== false) {
+      warnEl.style.display = 'none';
+      return;
+    }
     try {
       var ctx = document.createElement('canvas').getContext('2d');
       var sample = 'ניהול סושיאל (עד 4 שעות) story';
@@ -1172,7 +1179,98 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function quoteFileName() {
+    return 'הצעת מחיר - ' + (state.clientName.trim() || 'לקוח');
+  }
+
+  function saveBlob(blob, fileName) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    if (typeof link.download === 'undefined') {
+      window.open(url, '_blank');
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 20000);
+      return;
+    }
+    link.href = url;
+    link.download = fileName + '.pdf';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 20000);
+  }
+
+  // המסלול הראשי: שולחים לשרת בדיוק את ה-HTML שמוצג בתצוגה המקדימה, ושם כרום
+  // אמיתי מרנדר אותו ל-PDF עם טקסט וקטורי.
+  //
+  // למה לא מרנדרים על המכשיר: html2canvas לא מצלם את המסך - הוא מיישם מחדש
+  // בעצמו את פריסת הטקסט (מפרק למילים, מודד, ומצייר כל אחת ב-fillText). בעברית
+  // עם אנגלית וסוגריים באמצע (bidi) המימוש הזה לא מתלכד עם מנוע הפריסה של
+  // הדפדפן, ובאייפון התוצאה הייתה מילים דבוקות וסוגריים במקום הלא נכון. כשהפלט
+  // נוצר בשרת, אותם בייטים בדיוק יוצאים בכל מכשיר - האייפון רק מוריד קובץ.
+  async function requestServerPdf(pagesHtml, fileName) {
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = controller
+      ? setTimeout(function () {
+          controller.abort();
+        }, 60000)
+      : null;
+    try {
+      var res = await fetch('api/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pages: pagesHtml, filename: fileName }),
+        signal: controller ? controller.signal : undefined,
+      });
+      if (!res.ok) throw new Error('server responded ' + res.status);
+      var blob = await res.blob();
+      if (!blob || blob.size < 1000) throw new Error('empty pdf');
+      return blob;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   async function downloadPdf() {
+    var fileName = quoteFileName();
+    var pagesHtml = [page1El.innerHTML];
+    if (state.includeTermsPage) pagesHtml.push(page2El.innerHTML);
+
+    downloadBtn.disabled = true;
+    downloadBtn.textContent = 'מכין את הקובץ...';
+    var warnEl = document.getElementById('font-warning');
+    if (warnEl) warnEl.style.display = 'none';
+
+    if (navigator.onLine !== false) {
+      try {
+        var blob = await requestServerPdf(pagesHtml, fileName);
+        saveBlob(blob, fileName);
+        return;
+      } catch (err) {
+        // בלי רשת (או אם השרת נפל) נופלים למסלול המקומי. הוא פחות מדויק
+        // בעברית, אבל עדיף קובץ מקומי מאשר כלום.
+        console.warn('server pdf failed, falling back to local rendering', err);
+      } finally {
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = 'הורדת PDF';
+      }
+    }
+
+    // חשוב שזה לא ייפול בשקט: אם הקובץ נוצר על המכשיר, ייתכן שהעברית בו לא
+    // תיראה כמו בתצוגה. עדיף שזה ייאמר במפורש מאשר שיישלח ללקוח קובץ שבור.
+    if (warnEl) {
+      warnEl.textContent =
+        'לא הצלחנו להגיע לשרת, אז הקובץ נוצר על המכשיר עצמו - ייתכן שהעברית בו לא תיראה בדיוק כמו בתצוגה. כדאי לבדוק את הקובץ לפני ששולחים, ולנסות שוב כשיש חיבור טוב.';
+      warnEl.style.display = 'block';
+    }
+    await downloadPdfLocally();
+  }
+
+  async function downloadPdfLocally() {
     var pages = [page1El];
     if (state.includeTermsPage) pages.push(page2El);
     downloadBtn.disabled = true;
@@ -1255,7 +1353,7 @@
           heightLeft -= pageHeight;
         }
       }
-      pdf.save('הצעת מחיר - ' + (state.clientName.trim() || 'לקוח') + '.pdf');
+      pdf.save(quoteFileName() + '.pdf');
     } catch (err) {
       console.error(err);
       alert('יצירת ה-PDF נכשלה. כדאי לנסות שוב');
