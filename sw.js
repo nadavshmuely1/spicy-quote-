@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spicy-quote-v15';
+const CACHE_NAME = 'spicy-quote-v16';
 const CORE_ASSETS = [
   './',
   './index.html',
