@@ -63,12 +63,27 @@ async function run(blockFonts) {
       out[id] = canvas.toDataURL('image/png');
     }
     // האם ה-canvas באמת מצליח להשתמש ב-Heebo, או נופל לפונט ברירת מחדל?
+    // נבדק בנפרד לכל סוג טקסט - בדיוק הסוגים שנשברו בפועל: עברית טהורה,
+    // עברית עם סוגריים וספרות (תווים לטיניים בתוך עברית), ועברית עם מילה באנגלית.
     const probe = document.createElement('canvas').getContext('2d');
-    probe.font = '400 13.5px Heebo, sans-serif';
-    const heebo = probe.measureText('ניהול סושיאל').width;
-    probe.font = '400 13.5px sans-serif';
-    const fallback = probe.measureText('ניהול סושיאל').width;
-    out.__usesRealFont = heebo !== fallback;
+    const samples = {
+      latin: 'Spicy Social Media',
+      hebrew: 'ניהול סושיאל תוכן',
+      hebrewParens: 'יום צילום חודשי מרוכז (עד 4 שעות נטו)',
+      hebrewLatinMix: 'ניהול story שוטף',
+    };
+    out.__fontPerType = {};
+    for (const [name, text] of Object.entries(samples)) {
+      probe.font = '400 13.5px Heebo, sans-serif';
+      const withFont = probe.measureText(text).width;
+      probe.font = '400 13.5px sans-serif';
+      const withoutFont = probe.measureText(text).width;
+      out.__fontPerType[name] = withFont !== withoutFont;
+    }
+    out.__faceCount = [...document.fonts].filter((f) => f.family.includes('Heebo')).length;
+    out.__hasUnicodeRange = [...document.fonts].some(
+      (f) => f.family.includes('Heebo') && f.unicodeRange && f.unicodeRange !== 'U+0-10FFFF'
+    );
     return out;
   });
 
@@ -78,7 +93,14 @@ async function run(blockFonts) {
   for (const id of ['doc-page1', 'doc-page2']) {
     hashes[id] = crypto.createHash('md5').update(pages[id]).digest('hex');
   }
-  return { hashes, usesRealFont: pages.__usesRealFont, fontReqs, errors };
+  return {
+    hashes,
+    fontPerType: pages.__fontPerType,
+    faceCount: pages.__faceCount,
+    hasUnicodeRange: pages.__hasUnicodeRange,
+    fontReqs,
+    errors,
+  };
 }
 
 const normal = await run(false);
@@ -91,7 +113,14 @@ function check(name, ok, detail) {
 }
 
 check('אין שגיאות JS', normal.errors.length === 0, normal.errors[0]);
-check('ה-canvas משתמש בפונט האמיתי (לא נפילה לברירת מחדל)', normal.usesRealFont);
+for (const [name, ok] of Object.entries(normal.fontPerType)) {
+  check(`ה-canvas משתמש בפונט האמיתי - ${name}`, ok);
+}
+check(
+  'אין פיצול unicode-range (שובר סוגריים/ספרות בתוך עברית ב-canvas)',
+  !normal.hasUnicodeRange,
+  `faces=${normal.faceCount}`
+);
 check('אין בקשות רשת לפונטים (מוטמעים ב-CSS)', normal.fontReqs === 0 && blocked.fontReqs === 0);
 check(
   'הפלט זהה גם כשהרשת חוסמת פונטים - עמוד 1',

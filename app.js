@@ -1136,6 +1136,26 @@
       if (!img.complete) img.addEventListener('load', fitDocPages, { once: true });
     });
     requestAnimationFrame(fitDocPages);
+    checkCanvasFont();
+  }
+
+  // בדיקה עצמית שרצה על המכשיר עצמו: אם ה-canvas לא מצליח להשתמש בפונט
+  // האמיתי, הטקסט ב-PDF ייצא עם מילים דבוקות. במקום שזה ייצא שבור בשקט,
+  // עדיף שהאפליקציה תגיד את זה מראש.
+  function checkCanvasFont() {
+    var warnEl = document.getElementById('font-warning');
+    if (!warnEl) return;
+    try {
+      var ctx = document.createElement('canvas').getContext('2d');
+      var sample = 'ניהול סושיאל (עד 4 שעות) story';
+      ctx.font = '400 13.5px Heebo, sans-serif';
+      var withFont = ctx.measureText(sample).width;
+      ctx.font = '400 13.5px sans-serif';
+      var withoutFont = ctx.measureText(sample).width;
+      warnEl.style.display = withFont === withoutFont ? 'block' : 'none';
+    } catch (e) {
+      warnEl.style.display = 'none';
+    }
   }
 
   window.addEventListener('resize', fitDocPages);
@@ -1158,12 +1178,22 @@
     downloadBtn.disabled = true;
     downloadBtn.textContent = 'מכין את הקובץ...';
     try {
-      // מוודאים שהפונט (Heebo, עם unicode-range נפרד לעברית/לועזית) ותמונת
-      // הלוגו נטענו במלואם לפני הצילום - אחרת בדפדפנים מסוימים (בעיקר Safari)
-      // html2canvas עלול לתפוס פריים לפני שה-CSS/התמונה סופקו, וליצור עמוד ריק/לא מעוצב.
-      if (document.fonts && document.fonts.ready) {
+      // html2canvas מודד את הטקסט מה-DOM אבל מצייר אותו על canvas עם
+      // ctx.fillText - ושם הוא משתמש רק בפונט שה-canvas באמת מכיר. אם הפונט
+      // לא "מומש" לכל משקל שבשימוש, ה-canvas נופל בשקט לפונט ברירת מחדל,
+      // המדידה והציור לא תואמים, והמילים נדבקות זו לזו בלי רווח.
+      // לכן: מאלצים מימוש מפורש של כל משקל לפני הצילום, ולא מסתפקים
+      // ב-fonts.ready (ש-iOS מדווח עליו כמוכן גם כשה-canvas עוד לא מוכן).
+      if (document.fonts) {
         try {
-          await document.fonts.ready;
+          if (document.fonts.load) {
+            await Promise.all(
+              [400, 600, 700, 800].map(function (w) {
+                return document.fonts.load(w + ' 13.5px Heebo', 'אבג(1)abc');
+              })
+            );
+          }
+          if (document.fonts.ready) await document.fonts.ready;
         } catch (e) {}
       }
       var imgs = [];

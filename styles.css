@@ -751,3 +751,15 @@ textarea {
   cursor: pointer;
 }
 
+
+.font-warning {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 196, 0, 0.14);
+  border: 1px solid rgba(255, 196, 0, 0.45);
+  color: #ffd98a;
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: center;
+}
