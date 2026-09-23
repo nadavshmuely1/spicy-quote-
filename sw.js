@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spicy-quote-v14';
+const CACHE_NAME = 'spicy-quote-v15';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -6,8 +6,6 @@ const CORE_ASSETS = [
   './styles.css',
   './app.js',
   './manifest.json',
-  './vendor/html2canvas-pro.min.js',
-  './vendor/jspdf.umd.min.js',
   './assets/spicy-logo.png',
   './icons/icon-192.png',
   './icons/icon-512.png',

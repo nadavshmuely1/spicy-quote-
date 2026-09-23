@@ -14,13 +14,17 @@
 //    נמחקה רק בלחיצה על "התחלת הצעת מחיר חדשה".
 // 5. שדות המחיר פתחו באייפון את מקלדת הסימנים (עם אותיות) במקום לוח ספרות,
 //    כי type="number" לבדו לא מספיק - צריך inputmode.
+// 6. בלי חיבור נוצר קובץ על המכשיר, ושם העברית נשברה. היום לא נוצר קובץ
+//    בכלל בלי חיבור, ובמקומו מוצגת הודעה - כדי שלא יישלח ללקוח קובץ שבור.
 //
 // הבדיקה רצה בכמה רוחבי מסך, כי הבאג הראשון תלוי ברוחב.
 //
 // הרצה:  node test-ui.mjs
 
 import http from 'node:http';
+import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
@@ -43,9 +47,20 @@ const TYPES = {
   '.png': 'image/png',
 };
 
+const FAKE_PDF = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(4096, 0x20)]);
+
 function startServer() {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
+
+    // קיצור דרך: הבדיקות כאן על הממשק, לא על הרינדור. test-pdf.mjs הוא זה
+    // שמייצר PDF אמיתי ובודק אותו.
+    if (url.pathname === '/api/pdf') {
+      res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': FAKE_PDF.length });
+      res.end(FAKE_PDF);
+      return;
+    }
+
     const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
     const file = path.join(ROOT, rel);
     if (path.relative(ROOT, file).startsWith('..')) return res.writeHead(403).end('no');
@@ -106,6 +121,78 @@ async function measure(page, perService) {
       rowWidth: rows[0].clientWidth,
     };
   });
+}
+
+// בלי חיבור: לא נוצר קובץ, מוצגת הודעה, וההצעה לא מסומנת כגמורה
+async function offlineBehaviour(browser, port, downloadDir) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e.message)));
+  const cdp = await page.createCDPSession();
+  await cdp.send('Browser.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath: downloadDir,
+    eventsEnabled: true,
+  });
+
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
+  await page.type('#step-body input[type=text]', 'לקוח אופליין');
+  await page.click('#next-btn');
+  await wait(300);
+  await page.type('#step-body .price-box input[type=number]', '8000');
+  await page.click('#next-btn');
+  await wait(300);
+
+  await page.setOfflineMode(true);
+  await page.click('#next-btn');
+  await page.waitForSelector('.preview-overlay.open');
+  await wait(3000);
+
+  const notice = await page.evaluate(() => {
+    const el = document.getElementById('preview-notice');
+    return { shown: el.style.display === 'block', text: el.textContent };
+  });
+  check('אופליין · מוצגת הודעה שאי אפשר ליצור קובץ', notice.shown, notice.text.slice(0, 50));
+  check(
+    'אופליין · ההודעה אומרת שההצעה נשמרה',
+    notice.text.includes('ההצעה נשמרה'),
+    notice.text.slice(0, 60)
+  );
+
+  // התצוגה עצמה חייבת להמשיך לעבוד בלי חיבור
+  const preview = await page.evaluate(() => document.getElementById('doc-page1').innerText);
+  check('אופליין · התצוגה המקדימה עדיין נכונה', preview.includes('9,440'));
+
+  await page.evaluate(() => document.getElementById('download-btn').click());
+  await wait(3000);
+  const files = fs.readdirSync(downloadDir).filter((f) => f.endsWith('.pdf'));
+  check('אופליין · לא ירד שום קובץ', files.length === 0, files.join(', '));
+
+  await wait(2600);
+  const draft = await page.evaluate(() => {
+    const raw = localStorage.getItem('spicy-quote-draft-v1');
+    return raw ? JSON.parse(raw) : null;
+  });
+  check('אופליין · ההצעה לא מסומנת כגמורה', draft && draft.completed === false);
+
+  // כשהחיבור חוזר, הקובץ מוכן בלי שצריך ללחוץ שוב
+  await page.setOfflineMode(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.waitForFunction(
+    () => document.getElementById('preview-notice').style.display === 'none',
+    { timeout: 20000 }
+  );
+  check('אופליין · ההודעה נעלמת כשהחיבור חוזר', true);
+  await wait(2600);
+  const after = await page.evaluate(() => {
+    const raw = localStorage.getItem('spicy-quote-draft-v1');
+    return raw ? JSON.parse(raw) : null;
+  });
+  check('אופליין · אחרי שהחיבור חזר ההצעה מסומנת גמורה', after && after.completed === true);
+
+  check('אופליין · אין שגיאות JS', errors.length === 0, errors[0]);
+  await page.close();
 }
 
 // כל שדה מספרי חייב inputmode, אחרת באייפון נפתחת מקלדת עם אותיות
@@ -324,6 +411,7 @@ try {
   }
 
   await numericKeyboards(browser, port);
+  await offlineBehaviour(browser, port, await fsp.mkdtemp(path.join(os.tmpdir(), 'spicy-ui-')));
   await draftLifecycle(browser, port);
 } finally {
   await browser.close();

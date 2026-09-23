@@ -1184,36 +1184,8 @@
       if (!img.complete) img.addEventListener('load', fitDocPages, { once: true });
     });
     requestAnimationFrame(fitDocPages);
-    checkCanvasFont();
+    hideNotice();
     prefetchPdf();
-    // ההצעה הגיעה למסך הסופי - מכאן היא לא "הצעה שלא סיימת"
-    markDelivered();
-  }
-
-  var FONT_WARNING_TEXT = (document.getElementById('font-warning') || {}).textContent || '';
-
-  // בדיקה עצמית שרצה על המכשיר עצמו, ורלוונטית רק למסלול המקומי (בלי רשת):
-  // אם ה-canvas לא מצליח להשתמש בפונט האמיתי, הטקסט ב-PDF ייצא עם מילים
-  // דבוקות. כשיש רשת ה-PDF נוצר בשרת ולא יכול להישבר, אז אין מה להזהיר.
-  function checkCanvasFont() {
-    var warnEl = document.getElementById('font-warning');
-    if (!warnEl) return;
-    warnEl.textContent = FONT_WARNING_TEXT;
-    if (navigator.onLine !== false) {
-      warnEl.style.display = 'none';
-      return;
-    }
-    try {
-      var ctx = document.createElement('canvas').getContext('2d');
-      var sample = 'ניהול סושיאל (עד 4 שעות) story';
-      ctx.font = '400 13.5px Heebo, sans-serif';
-      var withFont = ctx.measureText(sample).width;
-      ctx.font = '400 13.5px sans-serif';
-      var withoutFont = ctx.measureText(sample).width;
-      warnEl.style.display = withFont === withoutFont ? 'block' : 'none';
-    } catch (e) {
-      warnEl.style.display = 'none';
-    }
   }
 
   window.addEventListener('resize', fitDocPages);
@@ -1221,6 +1193,7 @@
   function closePreview() {
     shareBtn.disabled = false;
     shareBtn.textContent = 'שליחה ללקוח';
+    hideNotice();
     previewOverlay.classList.remove('open');
     document.body.style.overflow = '';
   }
@@ -1289,6 +1262,23 @@
     }
   }
 
+  var noticeEl = document.getElementById('preview-notice');
+
+  function hideNotice() {
+    noticeEl.style.display = 'none';
+  }
+
+  // אין יותר מסלול מקומי: קובץ נוצר רק בשרת, ששם העברית יוצאת נכון. בלי
+  // חיבור לא מייצרים כלום ואומרים את זה במפורש - קובץ שנראה סביר אבל
+  // העברית בו שבורה עלול להישלח ללקוח בלי שמישהו ישים לב.
+  function showNoFileNotice() {
+    noticeEl.textContent =
+      navigator.onLine === false
+        ? 'אין חיבור לאינטרנט, אז אי אפשר ליצור את הקובץ כרגע. ההצעה נשמרה - אפשר ליצור אותו ברגע שיהיה חיבור.'
+        : 'לא הצלחנו להגיע לשרת. ההצעה נשמרה - כדאי לנסות שוב עוד רגע.';
+    noticeEl.style.display = 'block';
+  }
+
   function currentPagesHtml() {
     var pagesHtml = [page1El.innerHTML];
     if (state.includeTermsPage) pagesHtml.push(page2El.innerHTML);
@@ -1317,17 +1307,34 @@
   // באמצע, ההרשאה של הלחיצה פגה והשיתוף נכשל. לכן הכפתור לא זמין עד שהקובץ
   // מוכן: כשלוחצים, השיתוף נפתח מיד.
   function prefetchPdf() {
-    if (navigator.onLine === false) return;
-    shareBtn.disabled = true;
-    shareBtn.textContent = 'מכין...';
-    var done = function () {
+    var release = function () {
       shareBtn.disabled = false;
       shareBtn.textContent = 'שליחה ללקוח';
     };
+    if (navigator.onLine === false) {
+      release();
+      showNoFileNotice();
+      return;
+    }
+    shareBtn.disabled = true;
+    shareBtn.textContent = 'מכין...';
     try {
-      getPdfBlob(currentPagesHtml(), quoteFileName()).then(done, done);
+      getPdfBlob(currentPagesHtml(), quoteFileName()).then(
+        function () {
+          release();
+          hideNotice();
+          // ההצעה נחשבת גמורה רק כשהקובץ באמת נוצר. אחרת הצעה שנפתחה בלי
+          // חיבור הייתה נעלמת מהבאנר בלי ששום קובץ יצא ממנה.
+          markDelivered();
+        },
+        function () {
+          release();
+          showNoFileNotice();
+        }
+      );
     } catch (e) {
-      done();
+      release();
+      showNoFileNotice();
     }
   }
 
@@ -1354,14 +1361,17 @@
       var file = new File([blob], fileName + '.pdf', { type: 'application/pdf' });
       if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
         saveBlob(blob, fileName);
+        markDelivered();
         return;
       }
       await navigator.share({ files: [file], title: fileName });
+      markDelivered();
     } catch (err) {
       // ביטול של מסך השיתוף הוא לא שגיאה, ואין מה לעשות אחריו
       if (err && err.name === 'AbortError') return;
-      // כל כישלון אחר (כולל פקיעת ההרשאה של הלחיצה) - לפחות שתקבל את הקובץ
       console.warn('share failed', err);
+      // אם הקובץ כבר נוצר והשיתוף עצמו נכשל (למשל פקיעת ההרשאה של הלחיצה),
+      // לפחות שתקבל אותו כהורדה. אם הוא בכלל לא נוצר - הודעה.
       await downloadPdf();
     } finally {
       shareBtn.disabled = false;
@@ -1371,125 +1381,15 @@
 
   async function downloadPdf() {
     var fileName = quoteFileName();
-    var pagesHtml = currentPagesHtml();
-
     downloadBtn.disabled = true;
     downloadBtn.textContent = 'מכין...';
-    var warnEl = document.getElementById('font-warning');
-    if (warnEl) warnEl.style.display = 'none';
-
-    if (navigator.onLine !== false) {
-      try {
-        var blob = await getPdfBlob(pagesHtml, fileName);
-        saveBlob(blob, fileName);
-        return;
-      } catch (err) {
-        // בלי רשת (או אם השרת נפל) נופלים למסלול המקומי. הוא פחות מדויק
-        // בעברית, אבל עדיף קובץ מקומי מאשר כלום.
-        console.warn('server pdf failed, falling back to local rendering', err);
-      } finally {
-        downloadBtn.disabled = false;
-        downloadBtn.textContent = 'הורדה';
-      }
-    }
-
-    // חשוב שזה לא ייפול בשקט: אם הקובץ נוצר על המכשיר, ייתכן שהעברית בו לא
-    // תיראה כמו בתצוגה. עדיף שזה ייאמר במפורש מאשר שיישלח ללקוח קובץ שבור.
-    if (warnEl) {
-      warnEl.textContent =
-        'לא הצלחנו להגיע לשרת, אז הקובץ נוצר על המכשיר עצמו - ייתכן שהעברית בו לא תיראה בדיוק כמו בתצוגה. כדאי לבדוק את הקובץ לפני ששולחים, ולנסות שוב כשיש חיבור טוב.';
-      warnEl.style.display = 'block';
-    }
-    await downloadPdfLocally();
-  }
-
-  async function downloadPdfLocally() {
-    var pages = [page1El];
-    if (state.includeTermsPage) pages.push(page2El);
-    downloadBtn.disabled = true;
-    downloadBtn.textContent = 'מכין...';
+    hideNotice();
     try {
-      // html2canvas מודד את הטקסט מה-DOM אבל מצייר אותו על canvas עם
-      // ctx.fillText - ושם הוא משתמש רק בפונט שה-canvas באמת מכיר. אם הפונט
-      // לא "מומש" לכל משקל שבשימוש, ה-canvas נופל בשקט לפונט ברירת מחדל,
-      // המדידה והציור לא תואמים, והמילים נדבקות זו לזו בלי רווח.
-      // לכן: מאלצים מימוש מפורש של כל משקל לפני הצילום, ולא מסתפקים
-      // ב-fonts.ready (ש-iOS מדווח עליו כמוכן גם כשה-canvas עוד לא מוכן).
-      if (document.fonts) {
-        try {
-          if (document.fonts.load) {
-            await Promise.all(
-              [400, 600, 700, 800].map(function (w) {
-                return document.fonts.load(w + ' 13.5px Heebo', 'אבג(1)abc');
-              })
-            );
-          }
-          if (document.fonts.ready) await document.fonts.ready;
-        } catch (e) {}
-      }
-      var imgs = [];
-      pages.forEach(function (p) {
-        p.querySelectorAll('img').forEach(function (img) {
-          imgs.push(img);
-        });
-      });
-      await Promise.all(
-        imgs.map(function (img) {
-          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-          return new Promise(function (resolve) {
-            img.addEventListener('load', resolve, { once: true });
-            img.addEventListener('error', resolve, { once: true });
-            setTimeout(resolve, 4000);
-          });
-        })
-      );
-
-      var jsPDF = window.jspdf.jsPDF;
-      var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
-      var pageWidth = 210;
-      var pageHeight = 297;
-      var epsilon = 5;
-      var firstPage = true;
-
-      for (var i = 0; i < pages.length; i++) {
-        // תופסים תמיד את העמוד בגודלו האמיתי (794px), גם אם כרגע הוא מוקטן ויזואלית לתצוגת מובייל
-        var pageEl = pages[i];
-        var wrapEl = pageEl.parentElement;
-        var prevTransform = pageEl.style.transform;
-        var prevWrapWidth = wrapEl.style.width;
-        var prevWrapHeight = wrapEl.style.height;
-        var prevWrapOverflow = wrapEl.style.overflow;
-        pageEl.style.transform = 'none';
-        wrapEl.style.width = '';
-        wrapEl.style.height = '';
-        wrapEl.style.overflow = 'visible';
-        // letterRendering: true - בלי זה html2canvas לפעמים "בולע" רווחים
-        // בין מילים בטקסט עברי (עם הפונט המשתנה Heebo), והתוצאה מילים
-        // שדבוקות זו לזו ב-PDF.
-        var canvas = await window.html2canvas(pageEl, { scale: 3, backgroundColor: '#ffffff', useCORS: true, letterRendering: true });
-        pageEl.style.transform = prevTransform;
-        wrapEl.style.width = prevWrapWidth;
-        wrapEl.style.height = prevWrapHeight;
-        wrapEl.style.overflow = prevWrapOverflow;
-        var imageData = canvas.toDataURL('image/png');
-        var imageHeight = (canvas.height * pageWidth) / canvas.width;
-        var heightLeft = imageHeight;
-        var position = 0;
-        if (!firstPage) pdf.addPage();
-        firstPage = false;
-        pdf.addImage(imageData, 'PNG', 0, position, pageWidth, imageHeight);
-        heightLeft -= pageHeight;
-        while (heightLeft > epsilon) {
-          position -= pageHeight;
-          pdf.addPage();
-          pdf.addImage(imageData, 'PNG', 0, position, pageWidth, imageHeight);
-          heightLeft -= pageHeight;
-        }
-      }
-      pdf.save(quoteFileName() + '.pdf');
+      saveBlob(await getPdfBlob(currentPagesHtml(), fileName), fileName);
+      markDelivered();
     } catch (err) {
-      console.error(err);
-      alert('יצירת ה-PDF נכשלה. כדאי לנסות שוב');
+      console.warn('pdf request failed', err);
+      showNoFileNotice();
     } finally {
       downloadBtn.disabled = false;
       downloadBtn.textContent = 'הורדה';
@@ -1620,6 +1520,11 @@
       draftBanner.style.display = 'none';
     });
   }
+
+  // אם החיבור חוזר בזמן שהתצוגה פתוחה, מכינים את הקובץ בלי שצריך ללחוץ שוב
+  window.addEventListener('online', function () {
+    if (previewOverlay.classList.contains('open')) prefetchPdf();
+  });
 
   setInterval(persistDraft, 2000);
   // באייפון הדף לרוב לא מקבל unload בכלל - pagehide ו-visibilitychange הם
